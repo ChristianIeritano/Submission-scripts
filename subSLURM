@@ -133,13 +133,13 @@ def main():
         #List the missing items for the user
         missing_items = [key for key, value in sub_info.items() if value == '']
         print(f"Arguments are missing from the input: {', '.join(missing_items)}\n")
-        print('Usage: subSLURM file_name.gjf -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg\nfor single file submissions, or:\nsubSLURM all -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg\nfor submission of multiple files')
+        #print('Usage: subSLURM file_name.gjf -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg\nfor single file submissions, or:\nsubSLURM all -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg\nfor submission of multiple files')
         return
 
     #check if method is recognized
     if not sub_info['program'] in ['g16', 'python', 'orca']:
         print(f"The program argument (-p) provided: {sub_info['program']} is not an accepted value. It must be one of: 'g16', 'py', or 'orca'.")
-        print('Usage: subSLURM file_name.gjf -n #-m ####mb -t #days-#hours:#min -p g16/python/orca -a def/rrg\nfor single file submissions, or:\nsubSLURM all -n #-m ####mb -t #days-#hours:#min -p g16/python/orca -a def/rrg\nfor submission of multiple files')
+        #print('Usage: subSLURM file_name.gjf -n #-m ####mb -t #days-#hours:#min -p g16/python/orca -a def/rrg\nfor single file submissions, or:\nsubSLURM all -n #-m ####mb -t #days-#hours:#min -p g16/python/orca -a def/rrg\nfor submission of multiple files')
         return
     
     #check for correct syntax for ncores and memory (they must be integers!)
@@ -155,13 +155,13 @@ def main():
     #Check if ncores is an integer
     if not is_integer(sub_info['ncores']):
         print(f'The number of cores provided is not an integer: {sub_info["ncores"]}')
-        print('Usage: subSLURM file_name.gjf -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg\nfor single file submissions, or:\nsubSLURM all -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg\nfor submission of multiple files')
+        #print('Usage: subSLURM file_name.gjf -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg\nfor single file submissions, or:\nsubSLURM all -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg\nfor submission of multiple files')
         return
     
     #check if memory ends with mb
     elif not mem_str.endswith('mb'):
-        print(f'The memory specified the "mb" suffix: {mem_str}')
-        print('Usage: subSLURM file_name.gjf -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg\nfor single file submissions, or:\nsubSLURM all -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg\nfor submission of multiple files')
+        print(f'The memory specified needs the "mb" suffix: {mem_str}')
+        #print('Usage: subSLURM file_name.gjf -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg\nfor single file submissions, or:\nsubSLURM all -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg\nfor submission of multiple files')
         return
 
     #check if memory is an integer
@@ -190,7 +190,7 @@ def main():
         job_files = [f for f in os.listdir(os.getcwd()) if f.lower().endswith(job_extension)]
     
     #workflow for submitting a single file provided as the second argument
-    if sub_info['file_name'].endswith(extension_map[sub_info["program"]]):
+    elif sub_info['file_name'].endswith(extension_map[sub_info['program']]):
         
         if os.path.isfile(os.path.join(os.getcwd(), sys.argv[1])): #because I lower the arguements at the start of main(), I call using sys.argv to get the right case of the filename
             job_files.append(sys.argv[1])
@@ -199,7 +199,7 @@ def main():
             print(f'{sys.argv[1]} does not exist in {os.getcwd()}.')
             return        
     else:
-        print(f'{sys.argv[1]} does is not the right file type for a calculating in {sub_info["program"]}.')
+        print(f'{sys.argv[1]} is not the right file type for a calculating in {sub_info["program"]}.')
         return
 
     #make .sh files for all appropriate files in the current directory where files are located
