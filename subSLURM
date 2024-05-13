@@ -24,6 +24,9 @@ def submit_file(directory, file_name, sub_info):
         #This is where you define your compute canada account. If you are another group using this code, you will need to change this to your groups access credentials!
         if sub_info['account'] == 'rrg':
             sh_file.write(f'#SBATCH --account=rrg-shopkins-ab\n')
+
+        elif sub_info['account'] == 'derek':
+            sh_file.write(f'#SBATCH --account=def-schipper\n')
         else:
             sh_file.write(f'#SBATCH --account=def-shopkins\n')
         #!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -59,7 +62,7 @@ def submit_file(directory, file_name, sub_info):
             
             #special syntax for SLURM on compute canada
             if Sharcnet:
-                sh_file.write('module load python/3.10.2\n\n')
+                sh_file.write('module load python/3.10\n\n')
 
             sh_file.write(f'{program} {file_name} > {file_name.replace(".py", "")}.out\n')
         
@@ -78,6 +81,7 @@ def submit_file(directory, file_name, sub_info):
                     'module load orca/5.0.4\n',
                     f'cp ${{SLURM_SUBMIT_DIR}}/{file_name} ${{SLURM_TMPDIR}}/\n',
                     f'if [ -f "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.gbw" ]; then cp "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.gbw" ${{SLURM_TMPDIR}}/; fi\n', #copy any .gbw files (if they exist) - useful for doing MO calcs and speeding up optimizations using previous MO files
+                    f'if [ -f "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.hess" ]; then cp "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.hess" ${{SLURM_TMPDIR}}/; fi\n', #copy any .hess files (if they exist) - required when doing excited state dynamics calculations
                     'cd ${SLURM_TMPDIR}\n',
                     '\n'
                 ])
@@ -85,7 +89,20 @@ def submit_file(directory, file_name, sub_info):
             sh_file.write(f'$EBROOTORCA/orca {file_name}\n\n')
             sh_file.write(f'cp ${{SLURM_TMPDIR}}/{file_name[:-4]}* ${{SLURM_SUBMIT_DIR}}/\n')
         
-    #Submit the job
+        #MobCal-MPI 2.0.3
+        elif sub_info['program'] == 'mobcal':
+            sh_file.writelines([
+                '#SBATCH -N 1\n',
+                f'#SBATCH --ntasks={sub_info["ncores"]}\n',
+                f'#SBATCH --mem-per-cpu={sub_info["memory"]}\n',
+                #f'#SBATCH --output={file_name[:-4]}.mout\n',
+                '\n'
+            ])
+            
+            sh_file.write(f'srun MobCal_MPI_203.exe {file_name} {file_name.rsplit(".", 1)[0]}.mout\n\n') #takes inputfile and outputfile names as command line arguements
+
+    
+	#Submit the job
     submit_command = f'sbatch {sh_file_path}'
     print(submit_command)
     os.system(submit_command)
@@ -137,8 +154,8 @@ def main():
         return
 
     #check if method is recognized
-    if not sub_info['program'] in ['g16', 'python', 'orca']:
-        print(f"The program argument (-p) provided: {sub_info['program']} is not an accepted value. It must be one of: 'g16', 'py', or 'orca'.")
+    if not sub_info['program'] in ['g16', 'python', 'orca', 'mobcal']:
+        print(f"The program argument (-p) provided: {sub_info['program']} is not an accepted value. It must be one of: 'g16', 'py', 'orca', or 'mobcal.")
         #print('Usage: subSLURM file_name.gjf -n #-m ####mb -t #days-#hours:#min -p g16/python/orca -a def/rrg\nfor single file submissions, or:\nsubSLURM all -n #-m ####mb -t #days-#hours:#min -p g16/python/orca -a def/rrg\nfor submission of multiple files')
         return
     
@@ -181,7 +198,7 @@ def main():
         return
     
     job_files = [] #list to store files to submit via SLURM
-    extension_map = {'g16': '.gjf', 'python': '.py', 'orca': '.inp'} #dictionary of file extensions based on program arguement input
+    extension_map = {'g16': '.gjf', 'python': '.py', 'orca': '.inp', 'mobcal': '.mfj'} #dictionary of file extensions based on program arguement input
 
     #workflow for submitting all jobs with the matching extension in the cwd
     if sub_info['file_name'] == 'all':
