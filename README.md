@@ -1,8 +1,11 @@
 # Submission scripts
- Useful scripts for submitting jobs to HPC resources like Compute Canada.
+ Useful scripts for submitting jobs to HPC resources like Compute Canada. All scripts provided are free use; feel free to use and modify and use them in your workflows as you see fit. 
 
-## subSLURM
-This Python script automates the job submission process on Compute Canada systems for Gaussian (g16), Python (.py), and ORCA (.inp) files. 
+## subSLURM and subSLURM_node
+These Python scripts automates the job submission process on Compute Canada systems for Gaussian (g16), Python (.py), ORCA (.inp), and MobCal-MPI (.mfj) files. There is one minor difference between them, namely:
+
+- subSLURM: The user-specified memory allocates memory per CPU. 
+- subSLURM_node: The user-specified memory allocates the total memory for the node.
 
 ### Prerequisites 
 - Python 3.10 or higher
@@ -42,22 +45,32 @@ subSLURM filename -n # -m ####mb -t ##-##:## -p program -a account_type
     - python: `all` submits all files with a .py extension. 
     - orca: `all` submits all files with a .inp extension. 
 - **-n**: Number of cores; must be an integer.
-- **-m**: Memory in MB (e.g., 4096mb); must be an integer that ends with mb
-- **-t**: Runtime in the format ##-##:## (days-hours:minutes). A maximum of 2 digits for each input of days, hours, and minutes is permitted.
-- **-p**: Program (g16, python, or orca)
+- **-m**: Memory in MB (e.g., 4096mb) or GB (e.g., 1gb); must be an integer that ends with mb
+- **-t**: Runtime in the format ##-##:##:## (days-hours:minutes:seconds) OR ##d##h##m##s. A maximum of 2 digits for each input of days, hours, minutes, and seconds is permitted. Note that you can combine these formats without needed to submit all variables. For example, to specify a walltime of 1 day and 1 hour, you can enter `1-1h` or `1d-1`
+- **-p**: Program (g16, python, orca, or mobcal)
 - **-a**: Account type (def or rrg)
     - def is for the default allocation
     - rrg is for dedication queue awards from the RAC competition. 
 
+**Optional arguements only for ORCA calculations (-p orca)**
+- **-temp**: Work in a temporary directory via the local node storage of compute canada/DRAC clusters [optional: defaults to true]. For details, see https://docs.alliancecan.ca/wiki/Using_node-local_storage
+    - true (default): Runs ORCA calculations using the local node storage of compute canada/DRAC clusters. 
+    - false: Runs ORCA calculations on the directory where the .inp file is located. 
+
 ### Examples
-For submitting one file using 4 cores, 4096mb per core, 2h walltime, calling g16 on the default account:
+For submitting one file using 4 cores, 4096mb (4GB) per core, 2h walltime, calling g16 on the default account:
 ```bash
 subSLURM my_calculation.gjf -n 4 -m 4096mb -t 0-2:0 -p g16 -a def
 ```
 
-For submitting all files with a .inp extension (calling ORCA) using 8 cores, 4096mb per core, 1day12h walltime, on the dedicated allocation (RRG):
+Equivilently, you can do the same via: 
 ```bash
-subSLURM all -n 8 -m 4096mb -t 1-12:0 -p orca -a rrg
+subSLURM my_calculation.gjf -n 4 -m 4g -t 2h -p g16 -a def
+```
+
+For submitting all files with a .inp extension (calling ORCA) using 8 cores, 4096mb per core, 1day12h walltime, on the dedicated allocation (RRG) while bypassing the default for working in the local node storage :
+```bash
+subSLURM all -n 8 -m 4096mb -t 1d12h -p orca -a rrg -temp false
 ```
 
 ### Customization
@@ -67,5 +80,3 @@ If you belong to a different group or have different account credentials, you wi
 #### Adding support for other file types
 To add support for other programs, extend the `extension_map` dictionary,  add the necessary conditional blocks in the submit_file function, and populate that block with the information necessary to make the SLURM .sh file.
 
-### License
-This script is provided as is; feel free to use and modify it as you see fit. 

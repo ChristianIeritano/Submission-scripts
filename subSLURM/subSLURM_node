@@ -1,0 +1,264 @@
+#!/usr/bin/env python3.10
+import getpass
+import os
+import sys
+import time
+import re
+
+#Function to submit a job file
+def submit_file(directory, file_name, sub_info):
+    
+    #Determine the user's scratch directory and set up sh_files directory
+    username = getpass.getuser()
+
+    #Determine if running on Sharcnet
+    Sharcnet = os.path.exists(f'/scratch/{username}')
+
+    timestamp = str(int(time.time()))
+    sh_file_path = os.path.join(directory, f'{file_name.split(".")[0]}_{timestamp}.sh')
+
+    with open(sh_file_path, 'w') as sh_file:
+        sh_file.write('#!/bin/bash\n')
+        
+        #!!!!!!!!!!!!!!!!!!!!!!!!!
+        #This is where you define your compute canada account. If you are another group using this code, you will need to change this to your groups access credentials!
+        if sub_info['account'] == 'rrg':
+            sh_file.write(f'#SBATCH --account=rrg-shopkins-ab\n')
+
+        elif sub_info['account'] == 'derek':
+            sh_file.write(f'#SBATCH --account=def-schipper\n')
+        else:
+            sh_file.write(f'#SBATCH --account=def-shopkins\n')
+        #!!!!!!!!!!!!!!!!!!!!!!!!!
+        
+        #write the runtime and CPU information to the .sh file
+        
+        sh_file.writelines([
+            f'#SBATCH --time={sub_info["time"]}\n',
+            '#SBATCH --nodes=1\n',
+            f'#SBATCH --ntasks-per-node={sub_info["ncores"]}\n',
+            f'#SBATCH --mem={sub_info["memory"]}\n',
+            ])        
+
+        #defining this to its own variable for later convienence
+        program = sub_info['program']
+
+
+       #######   Gaussian  #######
+        if sub_info['program'] == 'g16':
+            sh_file.write(f'#SBATCH --output={file_name[:-4]}.log\n\n')
+            
+            #special syntax for SLURM on compute canada
+            if Sharcnet:
+                sh_file.write('module load gaussian/g16.c01\n')
+
+            sh_file.write(f'G16 {file_name}\n') #syntax difference between G16 and g16 - since .rwf files can get very large very fast, its best to not save those unless absolutely necessary. g16 saves by default, G16 does not 
+
+        #######   Python  #######
+        elif sub_info['program'] == 'python':
+            if Sharcnet:
+                sh_file.write('\nmodule load python/3.10\n')
+
+            sh_file.write(f'{program} {file_name} > {file_name.replace(".py", "")}.out\n')
+        
+        #######   ORCA  #######
+        elif sub_info['program'] == 'orca':
+            sh_file.write(f'#SBATCH --output={file_name[:-4]}.out\n\n')
+            
+            #special temporary directory stuff unique to DRAC clusters. Foir info, see https://docs.alliancecan.ca/wiki/Using_node-local_storage
+            if Sharcnet and sub_info['tmp_dir'].lower() == 'true':
+                sh_file.writelines([
+                    'module load StdEnv/2020 gcc/10.3.0 openmpi/4.1.1\n',
+                    'module load orca/5.0.4\n',
+                    '\n',
+                    f'cp ${{SLURM_SUBMIT_DIR}}/{file_name} ${{SLURM_TMPDIR}}/\n',
+                    f'if [ -f "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.gbw" ]; then cp "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.gbw" ${{SLURM_TMPDIR}}/; fi\n', #copy any .gbw files (if they exist) - useful for doing MO calcs and speeding up optimizations using previous MO files
+                    f'if [ -f "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.hess" ]; then cp "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.hess" ${{SLURM_TMPDIR}}/; fi\n', #copy any .hess files (if they exist) - required when doing excited state dynamics calculations
+                    'cd ${SLURM_TMPDIR}\n',
+                    '\n',
+                    f'$EBROOTORCA/orca {file_name}\n',
+                    f'cp ${{SLURM_TMPDIR}}/{file_name[:-4]}* ${{SLURM_SUBMIT_DIR}}/\n'
+                ])
+            
+            if Sharcnet and not sub_info['tmp_dir'].lower() == 'true':
+                sh_file.writelines([
+                    'module load StdEnv/2020 gcc/10.3.0 openmpi/4.1.1\n',
+                    'module load orca/5.0.4\n',
+                    '\n'
+                    f'$EBROOTORCA/orca {file_name}\n\n'
+                ])
+
+        #######   MobCal-MPI  #######
+        elif sub_info['program'] == 'mobcal':
+            sh_file.write(f'\nsrun MobCal_MPI_203.exe {file_name} {file_name.rsplit(".", 1)[0]}.mout\n\n') #takes inputfile and outputfile names as command line arguements
+
+	#Submit the job
+    submit_command = f'sbatch {sh_file_path}'
+    print(submit_command)
+    os.system(submit_command)
+
+#Main execution logic for handling command-line arguments
+def main():
+    
+    args = [arg.lower() for arg in sys.argv] #get command line arguements
+
+    #filename or all (12 or 14 is specified because the -temp arguement is optional)
+    if len(args) not in {12, 14}:
+        print('An invalid number of arguments were given.')
+        print('Usage: subSLURM file_name.gjf -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg [-temp true/false]\nfor single file submissions, or:\nsubSLURM all -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg [-temp true/false]\nfor submission of multiple files')
+        return
+
+    #get arguements from command line input independent of inut order
+    sub_info = {
+        'file_name': '',
+        'ncores': '',
+        'memory': '',
+        'time': '',
+        'program': '',
+        'account': '',
+        'tmp_dir': 'true',
+    }
+      
+    for i in range(2, len(args), 2):  #Start from index 3 (to skip 'submit' and 'file_name') and loop in increments of two
+        if i+1 < len(args):  #Ensure there's a value following the option -letter option
+            if args[i] == '-n':
+                sub_info['ncores'] = args[i + 1]
+            elif args[i] == '-m':
+                sub_info['memory'] = args[i + 1]
+            elif args[i] == '-t':
+                sub_info['time'] = args[i + 1]
+            elif args[i] == '-p':
+                sub_info['program'] = args[i + 1]
+            elif args[i] == '-a':
+                sub_info['account'] = args[i + 1]
+            elif args[i] == '-temp':
+                sub_info['tmp_dir'] = args[i + 1]
+            else:
+                sub_info['file_name'] = args[i] #only filename won't have the -letter arguement 
+
+    #### ARGUEMENT CHECK ####
+    if any(value == '' for value in sub_info.values()):
+        #List the missing items for the user
+        missing_items = [key for key, value in sub_info.items() if value == '']
+        print(f"Arguments are missing from the input: {', '.join(missing_items)}\n")
+        print('Usage (items in square parenthesis are optional):')
+        print('  subSLURM file_name.gjf -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg [-temp true/false]')
+        print('    for single file submissions, or:')
+        print('  subSLURM all -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg [-temp true/false]')
+        print('    for submission of multiple files')
+        return
+
+    #### METHOD CHECK ####
+    if not sub_info['program'] in ['g16', 'g16c', 'python', 'orca', 'mobcal']:
+        print(f"The program argument (-p) provided: {sub_info['program']} is not an accepted value. It must be one of: g16, g16c, py, orca, or mobcal.")
+        return
+    
+    #Function to check if a string represents an integer
+    def is_integer(s):
+        try:
+            int(s)
+            return True
+        except ValueError:
+            return False
+
+    #### NCORES CHECK ####
+    if not is_integer(sub_info['ncores']):
+        print(f'The number of cores provided is not an integer: {sub_info["ncores"]}.')
+        return
+    
+    #### MEMORY CHECK ####
+    mem_str = sub_info['memory']
+
+    def check_memory(mem_str):
+        #Check if the string ends with 'mb' or 'gb'
+        if mem_str.lower().endswith('mb') or mem_str.lower().endswith('gb'):
+            return mem_str
+
+        #Check if the string ends with 'm' or 'g'
+        elif mem_str.lower().endswith('m') or mem_str.lower().endswith('g'):
+            # Ensure that all characters before 'm' or 'g' are numeric
+            if re.match(r'^\d+[mg]$', mem_str.lower()):
+                return mem_str + 'b'
+            else:
+                print(f'The memory specified needs to be an integer followed by "mb", "m", "gb", or "g". You have provided: {mem_str}')
+                return
+        else:
+            print(f'The memory specified needs to be an integer followed by "mb", "m", "gb", or "g". You have provided: {mem_str}')
+            return
+
+    #check if memory is an integer now that the string has been ensured to end in either mb or gb
+    if not is_integer(mem_str[:-2]):
+        print(f'The memory must be an integer!')
+        return
+        
+    #update dict entry w/ corrected memory        
+    sub_info['memory'] = check_memory(mem_str)
+
+    #### WALTIME CHECK ####
+    def adjust_time_format(time_str):
+        try:
+            # This regex matches the complete ##-##:##:## format
+            pattern_full = re.compile(r'^\d{1,2}-\d{1,2}:\d{1,2}:\d{1,2}$')
+            
+            # This regex matches the partial format with days, hours, minutes, and seconds
+            pattern_partial = re.compile(r'^(?:(\d{1,2})d)?(?:(\d{1,2})h)?(?:(\d{1,2})m)?(?:(\d{1,2})s)?$')
+            
+            # This regex matches the mixed format ##-## or ##-##:## and other possible partial formats
+            pattern_mixed = re.compile(r'^(?:(\d{1,2})d)?(?:(\d{1,2})h)?(?:(\d{1,2})m)?(?:(\d{1,2})s)?(?:(\d{1,2}):(\d{1,2}))?$')
+
+            if pattern_full.match(time_str):
+                return time_str
+            
+            match_partial = pattern_partial.match(time_str)
+            if match_partial:
+                days, hours, minutes, seconds = match_partial.groups(default='00')
+                return f'{days.zfill(2)}-{hours.zfill(2)}:{minutes.zfill(2)}:{seconds.zfill(2)}'
+            
+            match_mixed = pattern_mixed.match(time_str)
+            if match_mixed:
+                days, hours, minutes, seconds, additional_hours, additional_minutes = match_mixed.groups(default='00')
+                if additional_hours != '00' or additional_minutes != '00':
+                    hours = additional_hours
+                    minutes = additional_minutes
+                return f'{days.zfill(2)}-{hours.zfill(2)}:{minutes.zfill(2)}:{seconds.zfill(2)}'
+        
+        except:
+            return False
+
+    #update dict entry w/ corrected memory    
+    time_str = sub_info['time']    
+    sub_info['time'] = adjust_time_format(time_str)
+
+    if not adjust_time_format(sub_info['time']):
+        print(f'The time was not provided in the correct format: {sub_info["time"]}.\nValid format is ##-##:##, #d#h#m#s, or any partial combination. For details, see the ReadME on GitHub.')
+        return
+    
+    job_files = [] #list to store files to submit via SLURM
+    extension_map = {'g16': '.gjf', 'g16c': '.gjf', 'python': '.py', 'orca': '.inp', 'mobcal': '.mfj'} #dictionary of file extensions based on program arguement input
+
+    #workflow for submitting all jobs with the matching extension in the cwd
+    if sub_info['file_name'] == 'all':
+        
+        job_extension = extension_map.get(sub_info['program'], None)
+        job_files = [f for f in os.listdir(os.getcwd()) if f.lower().endswith(job_extension)]
+    
+    #workflow for submitting a single file provided as the second argument
+    elif sub_info['file_name'].endswith(extension_map[sub_info['program']]):
+        
+        if os.path.isfile(os.path.join(os.getcwd(), sys.argv[1])): #because I lower the arguements at the start of main(), I call using sys.argv to get the right case of the filename
+            job_files.append(sys.argv[1])
+        
+        else:
+            print(f'{sys.argv[1]} does not exist in {os.getcwd()}.')
+            return        
+    else:
+        print(f'{sys.argv[1]} is not the right file type for a calculating in {sub_info["program"]}.')
+        return
+
+    #make .sh files for all appropriate files in the current directory where files are located
+    for job_file in job_files:
+        directory = os.path.dirname(job_file)
+        submit_file(directory, job_file, sub_info)
+
+if __name__ == '__main__':
+    main()
