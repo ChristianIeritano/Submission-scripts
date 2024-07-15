@@ -118,7 +118,9 @@ def main():
         'account': '',
         'tmp_dir': 'true',
     }
-      
+    
+    sub_info['file_name'] = args[1] #filename is the first arguement after subSLURM
+
     for i in range(2, len(args), 2):  #Start from index 3 (to skip 'submit' and 'file_name') and loop in increments of two
         if i+1 < len(args):  #Ensure there's a value following the option -letter option
             if args[i] == '-n':
@@ -133,8 +135,6 @@ def main():
                 sub_info['account'] = args[i + 1]
             elif args[i] == '-temp':
                 sub_info['tmp_dir'] = args[i + 1]
-            else:
-                sub_info['file_name'] = args[i] #only filename won't have the -letter arguement 
 
     #### ARGUEMENT CHECK ####
     if any(value == '' for value in sub_info.values()):
