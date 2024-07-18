@@ -74,6 +74,7 @@ def submit_file(directory, file_name, sub_info):
                     f'cp ${{SLURM_SUBMIT_DIR}}/{file_name} ${{SLURM_TMPDIR}}/\n',
                     f'if [ -f "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.gbw" ]; then cp "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.gbw" ${{SLURM_TMPDIR}}/; fi\n', #copy any .gbw files (if they exist) - useful for doing MO calcs and speeding up optimizations using previous MO files
                     f'if [ -f "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.hess" ]; then cp "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.hess" ${{SLURM_TMPDIR}}/; fi\n', #copy any .hess files (if they exist) - required when doing excited state dynamics calculations
+                    'if compgen -G "${SLURM_SUBMIT_DIR}/*.xyz" > /dev/null; then cp ${SLURM_SUBMIT_DIR}/*.xyz ${SLURM_TMPDIR}/; fi\n',  #copy all .xyz files if they exist
                     'cd ${SLURM_TMPDIR}\n',
                     '\n',
                     f'$EBROOTORCA/orca {file_name}\n',
@@ -172,67 +173,79 @@ def main():
     def check_memory(mem_str):
         #Check if the string ends with 'mb' or 'gb'
         if mem_str.lower().endswith('mb') or mem_str.lower().endswith('gb'):
-            return mem_str
+            if mem_str[:-2].isdigit():
+                return mem_str
+            else:
+                print(f'The memory specified needs to be an integer followed by "mb" or "gb". You have provided: {mem_str}')
+                return
 
         #Check if the string ends with 'm' or 'g'
         elif mem_str.lower().endswith('m') or mem_str.lower().endswith('g'):
-            # Ensure that all characters before 'm' or 'g' are numeric
-            if re.match(r'^\d+[mg]$', mem_str.lower()):
+            #Ensure that all characters before 'm' or 'g' are numeric
+            if mem_str[:-1].isdigit():
                 return mem_str + 'b'
             else:
-                print(f'The memory specified needs to be an integer followed by "mb", "m", "gb", or "g". You have provided: {mem_str}')
+                print(f'The memory specified needs to be an integer followed by "m" or "g". You have provided: {mem_str}')
                 return
+        
         else:
             print(f'The memory specified needs to be an integer followed by "mb", "m", "gb", or "g". You have provided: {mem_str}')
             return
 
-    #check if memory is an integer now that the string has been ensured to end in either mb or gb
-    if not is_integer(mem_str[:-2]):
-        print(f'The memory must be an integer!')
-        return
-        
     #update dict entry w/ corrected memory        
     sub_info['memory'] = check_memory(mem_str)
-
+        
     #### WALTIME CHECK ####
     def adjust_time_format(time_str):
-        try:
-            # This regex matches the complete ##-##:##:## format
-            pattern_full = re.compile(r'^\d{1,2}-\d{1,2}:\d{1,2}:\d{1,2}$')
-            
-            # This regex matches the partial format with days, hours, minutes, and seconds
-            pattern_partial = re.compile(r'^(?:(\d{1,2})d)?(?:(\d{1,2})h)?(?:(\d{1,2})m)?(?:(\d{1,2})s)?$')
-            
-            # This regex matches the mixed format ##-## or ##-##:## and other possible partial formats
-            pattern_mixed = re.compile(r'^(?:(\d{1,2})d)?(?:(\d{1,2})h)?(?:(\d{1,2})m)?(?:(\d{1,2})s)?(?:(\d{1,2}):(\d{1,2}))?$')
-
-            if pattern_full.match(time_str):
-                return time_str
-            
-            match_partial = pattern_partial.match(time_str)
-            if match_partial:
-                days, hours, minutes, seconds = match_partial.groups(default='00')
-                return f'{days.zfill(2)}-{hours.zfill(2)}:{minutes.zfill(2)}:{seconds.zfill(2)}'
-            
-            match_mixed = pattern_mixed.match(time_str)
-            if match_mixed:
-                days, hours, minutes, seconds, additional_hours, additional_minutes = match_mixed.groups(default='00')
-                if additional_hours != '00' or additional_minutes != '00':
-                    hours = additional_hours
-                    minutes = additional_minutes
-                return f'{days.zfill(2)}-{hours.zfill(2)}:{minutes.zfill(2)}:{seconds.zfill(2)}'
         
-        except:
+        #Regex pattern to parse alphanumeric time strings in any order of the form 1d4h300m20s and 4h3d80s1m
+        pattern = re.compile(r'(?:(?P<days>\d+)d|(?P<hours>\d+)h|(?P<minutes>\d+)m|(?P<seconds>\d+)s)')
+
+        def parse_alphanumeric_time_string(time_string):
+            time_dict = {'days': 0, 'hours': 0, 'minutes': 0, 'seconds': 0}
+            matches = pattern.findall(time_string)
+            
+            #dummy dict to check for suplicate delimiters
+            seen = {'days': False, 'hours': False, 'minutes': False, 'seconds': False}
+            
+            for match in matches:
+                for key, value in zip(time_dict.keys(), match):
+                    if value:
+                        #check for duplicate delimiters
+                        if seen[key]:
+                            print(f'Error: Duplicate delimiter detected for {key} in time string: {time_string}')
+                            return None
+                        seen[key] = True
+                        time_dict[key] = int(value)
+            return time_dict
+
+        try:
+            #Check if the time string contains any of the required delimiters - throw an error if it doesnt
+            if not any(delimiter in time_str for delimiter in ['d', 'h', 'm', 's']):
+                print(f'The time string provided ({time_str}) is missing d, h, m, and s delimiters. Use the format ##d##h##m##s.')
+                return False
+            
+            time_dict = parse_alphanumeric_time_string(time_str)
+            
+            if time_dict is None:
+                return False
+                
+            #Format the time string for SLURM as 'dd-hh:mm:ss'
+            return f'{str(time_dict["days"]).zfill(2)}-{str(time_dict["hours"]).zfill(2)}:{str(time_dict["minutes"]).zfill(2)}:{str(time_dict["seconds"]).zfill(2)}'
+                    
+        except Exception as e:
+            print(f'An exception occurred while parsing the time string: {e}.')
             return False
 
     #update dict entry w/ corrected memory    
     time_str = sub_info['time']    
     sub_info['time'] = adjust_time_format(time_str)
 
-    if not adjust_time_format(sub_info['time']):
-        print(f'The time was not provided in the correct format: {sub_info["time"]}.\nValid format is ##-##:##, #d#h#m#s, or any partial combination. For details, see the ReadME on GitHub.')
+    #exit code if time stirng was not parsed correctly 
+    if not sub_info['time']:
         return
     
+    #### Get list of files to prepare .sh fiels for ####
     job_files = [] #list to store files to submit via SLURM
     extension_map = {'g16': '.gjf', 'g16c': '.gjf', 'python': '.py', 'orca': '.inp', 'mobcal': '.mfj'} #dictionary of file extensions based on program arguement input
 

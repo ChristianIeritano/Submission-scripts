@@ -44,9 +44,10 @@ subSLURM filename -n # -m ####mb -t ##-##:## -p program -a account_type
     - g16: `all` submits all files with a .gjf extension. 
     - python: `all` submits all files with a .py extension. 
     - orca: `all` submits all files with a .inp extension. 
+    - mobcal: `all` submits all files with the .mfj extension. 
 - **-n**: Number of cores; must be an integer.
 - **-m**: Memory in MB (e.g., 4096mb) or GB (e.g., 1gb); must be an integer that ends with mb
-- **-t**: Runtime in the format ##-##:##:## (days-hours:minutes:seconds) OR ##d##h##m##s. A maximum of 2 digits for each input of days, hours, minutes, and seconds is permitted. Note that you can combine these formats without needed to submit all variables. For example, to specify a walltime of 1 day and 1 hour, you can enter `1-1h` or `1d-1`
+- **-t**: Runtime in the format ##d##h##m##s. A maximum of 2 digits for each input of days, hours, minutes, and seconds is permitted. For example, to specify a walltime of 1 day and 1 hour, you can enter `1d1h` or `25h`.
 - **-p**: Program (g16, python, orca, or mobcal)
 - **-a**: Account type (def or rrg)
     - def is for the default allocation
@@ -60,12 +61,7 @@ subSLURM filename -n # -m ####mb -t ##-##:## -p program -a account_type
 ### Examples
 For submitting one file using 4 cores, 4096mb (4GB) per core, 2h walltime, calling g16 on the default account:
 ```bash
-subSLURM my_calculation.gjf -n 4 -m 4096mb -t 0-2:0 -p g16 -a def
-```
-
-Equivilently, you can do the same via: 
-```bash
-subSLURM my_calculation.gjf -n 4 -m 4g -t 2h -p g16 -a def
+subSLURM my_calculation.gjf -n 4 -m 4096mb -t 2h -p g16 -a def
 ```
 
 For submitting all files with a .inp extension (calling ORCA) using 8 cores, 4096mb per core, 1day12h walltime, on the dedicated allocation (RRG) while bypassing the default for working in the local node storage :
