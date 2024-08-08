@@ -61,8 +61,8 @@ def submit_file(directory, file_name, sub_info):
 
             sh_file.write(f'{program} {file_name} > {file_name.replace(".py", "")}.out\n')
         
-        #######   ORCA  #######
-        elif sub_info['program'] == 'orca':
+        #######   ORCA5  #######
+        elif sub_info['program'] == 'orca5':
             sh_file.write(f'#SBATCH --output={file_name[:-4]}.out\n\n')
             
             #special temporary directory stuff unique to DRAC clusters. Foir info, see https://docs.alliancecan.ca/wiki/Using_node-local_storage
@@ -89,9 +89,50 @@ def submit_file(directory, file_name, sub_info):
                     f'$EBROOTORCA/orca {file_name}\n\n'
                 ])
 
+            #if not ruunning on Sharcnet, then /tmp directories don't matter
+            else:
+                sh_file.write(f'/mnt/Scratch/programs/orca/orca {file_name}\n\n')
+
+        #######   ORCA6  #######
+        elif sub_info['program'] == 'orca6':
+            sh_file.write(f'#SBATCH --output={file_name[:-4]}.out\n\n')
+            
+            #special temporary directory stuff unique to DRAC clusters. Foir info, see https://docs.alliancecan.ca/wiki/Using_node-local_storage
+            if Sharcnet and sub_info['tmp_dir'].lower() == 'true':
+                sh_file.writelines([
+                    'module load StdEnv/2023 gcc/12.3 openmpi/4.1.5\n',
+                    'module load orca/6.0.0\n',
+                    '\n',
+                    f'cp ${{SLURM_SUBMIT_DIR}}/{file_name} ${{SLURM_TMPDIR}}/\n',
+                    f'if [ -f "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.gbw" ]; then cp "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.gbw" ${{SLURM_TMPDIR}}/; fi\n', #copy any .gbw files (if they exist) - useful for doing MO calcs and speeding up optimizations using previous MO files
+                    f'if [ -f "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.hess" ]; then cp "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.hess" ${{SLURM_TMPDIR}}/; fi\n', #copy any .hess files (if they exist) - required when doing excited state dynamics calculations
+                    'if compgen -G "${SLURM_SUBMIT_DIR}/*.xyz" > /dev/null; then cp ${SLURM_SUBMIT_DIR}/*.xyz ${SLURM_TMPDIR}/; fi\n',  #copy all .xyz files if they exist
+                    'cd ${SLURM_TMPDIR}\n',
+                    '\n',
+                    f'$EBROOTORCA/orca {file_name}\n',
+                    f'cp ${{SLURM_TMPDIR}}/{file_name[:-4]}* ${{SLURM_SUBMIT_DIR}}/\n'
+                ])
+            
+            if Sharcnet and not sub_info['tmp_dir'].lower() == 'true':
+                sh_file.writelines([
+                    'module load StdEnv/2023 gcc/12.3 openmpi/4.1.5\n',
+                    'module load orca/6.0.0\n',
+                    '\n'
+                    f'$EBROOTORCA/orca {file_name}\n\n'
+                ])
+            
+            #if not ruunning on Sharcnet, then /tmp directories don't matter
+            else:
+                sh_file.write(f'/mnt/Scratch/programs/orca/orca {file_name}\n\n')
+
         #######   MobCal-MPI  #######
         elif sub_info['program'] == 'mobcal':
             sh_file.write(f'\nsrun MobCal_MPI_203.exe {file_name} {file_name.rsplit(".", 1)[0]}.mout\n\n') #takes inputfile and outputfile names as command line arguements
+
+        #######   CREST   #######
+        #Note that this submission script is specific to +1 cations with a gas phase model. You will need to change the line below if you want it to do other things. Adding CREST specific terms to subSLURM would be too tedious otherwise.
+        elif sub_info['program'] == 'crest':
+            sh_file.write(f'\nsrun crest {file_name} --gfn2 -T {sub_info["ncores"]} --chrg 1\n\n') 
 
 	#Submit the job
     submit_command = f'sbatch {sh_file_path}'
@@ -150,8 +191,8 @@ def main():
         return
 
     #### METHOD CHECK ####
-    if not sub_info['program'] in ['g16', 'g16c', 'python', 'orca', 'mobcal']:
-        print(f"The program argument (-p) provided: {sub_info['program']} is not an accepted value. It must be one of: g16, g16c, py, orca, or mobcal.")
+    if not sub_info['program'] in ['g16', 'g16c', 'python', 'orca5', 'orca6', 'mobcal']:
+        print(f"The program argument (-p) provided: {sub_info['program']} is not an accepted value. It must be one of: g16, g16c, py, orca5, orca6, or mobcal.")
         return
     
     #Function to check if a string represents an integer
@@ -247,7 +288,7 @@ def main():
     
     #### Get list of files to prepare .sh fiels for ####
     job_files = [] #list to store files to submit via SLURM
-    extension_map = {'g16': '.gjf', 'g16c': '.gjf', 'python': '.py', 'orca': '.inp', 'mobcal': '.mfj'} #dictionary of file extensions based on program arguement input
+    extension_map = {'g16': '.gjf', 'g16c': '.gjf', 'python': '.py', 'orca5': '.inp', 'orca6': '.inp', 'mobcal': '.mfj', 'crest': '.xyz'} #dictionary of file extensions based on program arguement input
 
     #workflow for submitting all jobs with the matching extension in the cwd
     if sub_info['file_name'] == 'all':
