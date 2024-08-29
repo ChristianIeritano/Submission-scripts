@@ -14,9 +14,12 @@ def submit_file(directory, file_name, sub_info):
     #Determine if running on Sharcnet
     Sharcnet = os.path.exists(f'/scratch/{username}')
 
-    timestamp = str(int(time.time()))
+    timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
     sh_file_path = os.path.join(directory, f'{file_name.split(".")[0]}_{timestamp}.sh')
 
+    #define list of files with the same basename - useful for copying to SLURM TMP_dir
+    files_to_copy = [f for f in os.listdir(os.getcwd()) if f.startswith(file_name.rsplit('.', 1)[0])]
+    
     with open(sh_file_path, 'w') as sh_file:
         sh_file.write('#!/bin/bash\n')
         
@@ -61,67 +64,55 @@ def submit_file(directory, file_name, sub_info):
 
             sh_file.write(f'{program} {file_name} > {file_name.replace(".py", "")}.out\n')
         
-        #######   ORCA5  #######
-        elif sub_info['program'] == 'orca5':
+        #######   ORCA  #######
+        elif 'orca' in sub_info['program']:
             sh_file.write(f'#SBATCH --output={file_name[:-4]}.out\n\n')
-            
-            #special temporary directory stuff unique to DRAC clusters. Foir info, see https://docs.alliancecan.ca/wiki/Using_node-local_storage
-            if Sharcnet and sub_info['tmp_dir'].lower() == 'true':
-                sh_file.writelines([
-                    'module load StdEnv/2020 gcc/10.3.0 openmpi/4.1.1\n',
-                    'module load orca/5.0.4\n',
-                    '\n',
-                    f'cp ${{SLURM_SUBMIT_DIR}}/{file_name} ${{SLURM_TMPDIR}}/\n',
-                    f'if [ -f "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.gbw" ]; then cp "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.gbw" ${{SLURM_TMPDIR}}/; fi\n', #copy any .gbw files (if they exist) - useful for doing MO calcs and speeding up optimizations using previous MO files
-                    f'if [ -f "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.hess" ]; then cp "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.hess" ${{SLURM_TMPDIR}}/; fi\n', #copy any .hess files (if they exist) - required when doing excited state dynamics calculations
-                    'if compgen -G "${SLURM_SUBMIT_DIR}/*.xyz" > /dev/null; then cp ${SLURM_SUBMIT_DIR}/*.xyz ${SLURM_TMPDIR}/; fi\n',  #copy all .xyz files if they exist
-                    'cd ${SLURM_TMPDIR}\n',
-                    '\n',
-                    f'$EBROOTORCA/orca {file_name}\n',
-                    f'cp ${{SLURM_TMPDIR}}/{file_name[:-4]}* ${{SLURM_SUBMIT_DIR}}/\n'
-                ])
-            
-            if Sharcnet and not sub_info['tmp_dir'].lower() == 'true':
-                sh_file.writelines([
-                    'module load StdEnv/2020 gcc/10.3.0 openmpi/4.1.1\n',
-                    'module load orca/5.0.4\n',
-                    '\n'
-                    f'$EBROOTORCA/orca {file_name}\n\n'
-                ])
 
-            #if not ruunning on Sharcnet, then /tmp directories don't matter
-            else:
-                sh_file.write(f'/mnt/Scratch/programs/orca/orca {file_name}\n\n')
+            if Sharcnet:
+                
+                #ORCA 5.0.4 on Sharcwebz
+                if sub_info['program'].lower() == 'orca5':
+                    sh_file.write('module load StdEnv/2020 gcc/10.3.0 openmpi/4.1.1 orca/5.0.4\n\n')
 
-        #######   ORCA6  #######
-        elif sub_info['program'] == 'orca6':
-            sh_file.write(f'#SBATCH --output={file_name[:-4]}.out\n\n')
+                #ORCA 6.0.0 on Sharcwebz
+                elif sub_info['program'].lower() == 'orca6': 
+                    sh_file.write('module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n\n',)
+                
+                #Special call for NBO in ORCA 6.0.0 on Sharcwebz
+                elif sub_info['program'].lower() == 'orca6nbo': 
+
+                    sh_file.writelines([
+                        'module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n',
+                        'module load gaussian/g16.c01\n',
+                        '\n',
+
+                        r'export GENEXE=`which gennbo.i4.exe`',
+                        '\n',                    
+                        r'export NBOEXE=`which nbo7.i4.exe`',
+                        '\n\n',
+                    ])
+                
+                else: 
+                    print(f'Unrecognized ORCA program: {sub_info["program"]}.')
+                    return None
+
+                #special temporary directory stuff unique to DRAC clusters. Foir info, see https://docs.alliancecan.ca/wiki/Using_node-local_storage
+                if sub_info['tmp_dir'].lower() == 'true':
+                    
+                    #write the command to the copy all files with the same basename to the SLURM tempdir
+                    for file in files_to_copy:
+                        cp_command = f'cp ${{SLURM_SUBMIT_DIR}}/{file} ${{SLURM_TMPDIR}}/\n'
+                        sh_file.write(cp_command)
+                    sh_file.write('cd ${SLURM_TMPDIR}\n\n') #change to temp dir so that ORCA runs out of it
+
+                #write the commend to run orca on the defined input file    
+                sh_file.write(f'$EBROOTORCA/orca {file_name}\n')
+
+                #if using a temp dir, once the calc finishes, copy all files from it
+                if sub_info['tmp_dir'].lower() == 'true':
+                    sh_file.write(f'cp ${{SLURM_TMPDIR}}/* ${{SLURM_SUBMIT_DIR}}/\n\n')
             
-            #special temporary directory stuff unique to DRAC clusters. Foir info, see https://docs.alliancecan.ca/wiki/Using_node-local_storage
-            if Sharcnet and sub_info['tmp_dir'].lower() == 'true':
-                sh_file.writelines([
-                    'module load StdEnv/2023 gcc/12.3 openmpi/4.1.5\n',
-                    'module load orca/6.0.0\n',
-                    '\n',
-                    f'cp ${{SLURM_SUBMIT_DIR}}/{file_name} ${{SLURM_TMPDIR}}/\n',
-                    f'if [ -f "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.gbw" ]; then cp "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.gbw" ${{SLURM_TMPDIR}}/; fi\n', #copy any .gbw files (if they exist) - useful for doing MO calcs and speeding up optimizations using previous MO files
-                    f'if [ -f "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.hess" ]; then cp "${{SLURM_SUBMIT_DIR}}/{file_name[:-4]}.hess" ${{SLURM_TMPDIR}}/; fi\n', #copy any .hess files (if they exist) - required when doing excited state dynamics calculations
-                    'if compgen -G "${SLURM_SUBMIT_DIR}/*.xyz" > /dev/null; then cp ${SLURM_SUBMIT_DIR}/*.xyz ${SLURM_TMPDIR}/; fi\n',  #copy all .xyz files if they exist
-                    'cd ${SLURM_TMPDIR}\n',
-                    '\n',
-                    f'$EBROOTORCA/orca {file_name}\n',
-                    f'cp ${{SLURM_TMPDIR}}/{file_name[:-4]}* ${{SLURM_SUBMIT_DIR}}/\n'
-                ])
-            
-            if Sharcnet and not sub_info['tmp_dir'].lower() == 'true':
-                sh_file.writelines([
-                    'module load StdEnv/2023 gcc/12.3 openmpi/4.1.5\n',
-                    'module load orca/6.0.0\n',
-                    '\n'
-                    f'$EBROOTORCA/orca {file_name}\n\n'
-                ])
-            
-            #if not ruunning on Sharcnet, then /tmp directories don't matter
+            #if not ruunning on Sharcnet, then /tmp directories and ORCA versions might not matter. Just call ORCA :)
             else:
                 sh_file.write(f'/mnt/Scratch/programs/orca/orca {file_name}\n\n')
 
@@ -191,7 +182,7 @@ def main():
         return
 
     #### METHOD CHECK ####
-    if not sub_info['program'] in ['g16', 'g16c', 'python', 'orca5', 'orca6', 'mobcal']:
+    if not sub_info['program'] in ['g16', 'g16c', 'python', 'orca5', 'orca6', 'orca6nbo', 'mobcal']:
         print(f"The program argument (-p) provided: {sub_info['program']} is not an accepted value. It must be one of: g16, g16c, py, orca5, orca6, or mobcal.")
         return
     
@@ -288,7 +279,14 @@ def main():
     
     #### Get list of files to prepare .sh fiels for ####
     job_files = [] #list to store files to submit via SLURM
-    extension_map = {'g16': '.gjf', 'g16c': '.gjf', 'python': '.py', 'orca5': '.inp', 'orca6': '.inp', 'mobcal': '.mfj', 'crest': '.xyz'} #dictionary of file extensions based on program arguement input
+    extension_map = {'g16': '.gjf', 
+        'g16c': '.gjf', 
+        'python': '.py', 
+        'orca5': '.inp', 
+        'orca6': '.inp', 
+        'orca6nbo': '.inp', 
+        'mobcal': '.mfj', 
+        'crest': '.xyz'} #dictionary of file extensions based on program arguement input
 
     #workflow for submitting all jobs with the matching extension in the cwd
     if sub_info['file_name'] == 'all':
