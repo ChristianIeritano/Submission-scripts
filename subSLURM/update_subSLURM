@@ -1,0 +1,58 @@
+#!/usr/bin/env python3.10
+import os
+import shutil
+
+def clone_and_copy_subslurm(local_directory, temp_dir, git_repo):
+
+    # Create the temporary directory if it doesn't exist
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+
+    # Clone the git repository to the temporary directory
+    result = os.system(f'git clone {git_repo} {temp_dir} > /dev/null 2>&1')
+    
+    if result != 0:
+        print(f'Error cloning git repo: {result}')
+        
+        # Clean up and exit if cloning fails
+        shutil.rmtree(temp_dir)
+        return
+
+    # Define the source directory for subSLURM files within the cloned repo
+    subslurm_source_dir = os.path.join(temp_dir, 'subSLURM')
+
+    # Check if the source directory exists and has files
+    if os.path.exists(subslurm_source_dir) and os.listdir(subslurm_source_dir):
+        
+        try:
+            # Copy files from the subSLURM directory to the local directory
+            for filename in os.listdir(subslurm_source_dir):
+                source = os.path.join(subslurm_source_dir, filename)
+                destination = os.path.join(local_directory, filename)
+                shutil.copy2(source, destination)
+
+            # Remove the temporary directory
+            shutil.rmtree(temp_dir)
+        
+        except Exception as e:
+            print(f'Error when copying {filename} from {source} to {destination}: {e}')
+            return
+            
+if __name__ == "__main__":
+    
+    print('Starting update process...')
+
+    if os.path.isdir(os.path.dirname(__file__)):
+        
+        # Define the local directory path, git_repo, and temp_dir to clone the git repo to
+        local_directory = os.path.dirname(__file__)
+        temp_dir = os.path.join(local_directory, 'temp')
+        git_repo = 'https://github.com/ChristianIeritano/Submission-scripts'
+
+        # Run the update function to pull latest updates
+        clone_and_copy_subslurm(local_directory, temp_dir, git_repo)
+
+        print('Update process completed.')
+    
+    else:
+        print(f'Error: {local_directory} is not a valid directory in your systems path. Place update_subSLURM in the same folder as subSLURM, add this directory to PATH, then re-run the code.')

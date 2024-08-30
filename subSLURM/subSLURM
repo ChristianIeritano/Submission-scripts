@@ -49,7 +49,7 @@ def submit_file(directory, file_name, sub_info):
 
        #######   Gaussian  #######
         if sub_info['program'] == 'g16':
-            sh_file.write(f'#SBATCH --output={file_name[:-4]}.log\n\n')
+            sh_file.write(f'#SBATCH --output={file_name.rsplit(".", 1)[0]}.log\n\n')
             
             #special syntax for SLURM on compute canada
             if Sharcnet:
@@ -66,7 +66,7 @@ def submit_file(directory, file_name, sub_info):
         
         #######   ORCA  #######
         elif 'orca' in sub_info['program']:
-            sh_file.write(f'#SBATCH --output={file_name[:-4]}.out\n\n')
+            sh_file.write(f'#SBATCH --output={file_name.rsplit(".", 1)[0]}.out\n\n')
 
             if Sharcnet:
                 
@@ -99,11 +99,11 @@ def submit_file(directory, file_name, sub_info):
                 #special temporary directory stuff unique to DRAC clusters. Foir info, see https://docs.alliancecan.ca/wiki/Using_node-local_storage
                 if sub_info['tmp_dir'].lower() == 'true':
                     
-                    #write the command to the copy all files with the same basename to the SLURM tempdir
-                    for file in files_to_copy:
-                        cp_command = f'cp ${{SLURM_SUBMIT_DIR}}/{file} ${{SLURM_TMPDIR}}/\n'
-                        sh_file.write(cp_command)
-                    sh_file.write('cd ${SLURM_TMPDIR}\n\n') #change to temp dir so that ORCA runs out of it
+                    #copy all files w/ the same basename has the input
+                    sh_file.write(f'cp ${{SLURM_SUBMIT_DIR}}/{file_name.rsplit(".", 1)[0]}* ${{SLURM_TMPDIR}}/\n')
+                    
+                    #change to temp dir so that ORCA runs out of it
+                    sh_file.write('cd ${SLURM_TMPDIR}\n\n') 
 
                 #write the commend to run orca on the defined input file    
                 sh_file.write(f'$EBROOTORCA/orca {file_name}\n')
@@ -127,8 +127,13 @@ def submit_file(directory, file_name, sub_info):
 
 	#Submit the job
     submit_command = f'sbatch {sh_file_path}'
-    print(submit_command)
-    os.system(submit_command)
+    
+    try:
+        os.system(submit_command)
+        print(f'Submitted {os.path.basename(file_name)} succesfully.')
+    
+    except Exception as e:
+        print(f'An unexcepted error occured when submitting {os.path.basename(file_name)}: {e}')
 
 #Main execution logic for handling command-line arguments
 def main():
