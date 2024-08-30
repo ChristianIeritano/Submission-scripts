@@ -31,6 +31,9 @@ def clone_and_copy_subslurm(local_directory, temp_dir, git_repo):
                 destination = os.path.join(local_directory, filename)
                 shutil.copy2(source, destination)
 
+                # Give copied files executable perms (755)
+                os.chmod(destination, 0o755)
+
             # Remove the temporary directory
             shutil.rmtree(temp_dir)
         
