@@ -5,7 +5,7 @@
 These Python scripts automates the job submission process on Compute Canada systems for Gaussian (g16), Python (.py), ORCA (.inp), and MobCal-MPI (.mfj) files. There is one minor difference between them, namely:
 
 - subSLURM: The user-specified memory allocates memory per CPU. 
-- subSLURM_node: The user-specified memory allocates the total memory for the node.
+- update_subSLURM: A handy function for updating subSLURM on your local environment without downloading from Github.
 
 ### Prerequisites 
 - Python 3.10 or higher
@@ -20,6 +20,7 @@ These Python scripts automates the job submission process on Compute Canada syst
     module spider python
     module spider orca
     ```
+
 ### Installation
 - Add `subSLURM` to a directory available in your systems PATH. I reccomend a folder called `/bin` located in `/home/{your_username}`. To add this location to your PATH, add the following line to `.bash_profile`:
     ```bash
@@ -27,14 +28,15 @@ These Python scripts automates the job submission process on Compute Canada syst
 
     export PATH
     ```
-- Enable execute permissions for subSLURM via:
+
+- Enable execute permissions for subSLURM and update_subSLURM via:
     ```bash
     cd /home/{your_username}/bin
-    chmod a+x subSLURM
+    chmod a+x subSLURM update_subSLURM
     ```
 
 ### Usage
-Since subSLURM is in systems PATH, it can be called from any directory. Usage is as follows: 
+Since subSLURM and update_subSLURM is in systems PATH, it can be called from any directory. Usage is as follows: 
 
 ```console
 subSLURM filename -n # -m ####mb -t ##-##:## -p program -a account_type
@@ -71,6 +73,43 @@ elif sub_info['program'] == 'crest':
     sh_file.write(f'\nsrun crest {file_name} --gfn2 -T {sub_info["ncores"]} --chrg 1\n\n')
 ```
 
+### Updating subSLURM
+If updates are pushed to GitHub, users can update their local copy of subSLURM via `update_subSLURM`. If `update_subSLURM` is in your system's PATH:
+
+```bash
+update_subSLURM
+```
+
+which should yield the following response if succesful. Informative messages will be printed if any errors are encountered during the update. 
+```bash
+update_subSLURM
+```
+
+For submitting one file using 4 cores, 4096mb (4GB) per core, 2h walltime, calling g16 on the default account:
+```console
+Starting update process...
+Update process completed.
+```
+
+### Customization
+#### Changing Account Credentials
+If you belong to a different group or have different account credentials, you will need to modify the script to reflect your account details. Look for the following section in the subSLURM code, and update it with your group's credentials:
+
+```python
+        #!!!!!!!!!!!!!!!!!!!!!!!!!
+        #This is where you define your compute canada account. If you are another group using this code, you will need to change this to your groups access credentials!
+        if sub_info['account'] == 'rrg':
+            sh_file.write(f'#SBATCH --account=rrg-shopkins-ab\n')
+
+        elif sub_info['account'] == 'derek':
+            sh_file.write(f'#SBATCH --account=def-schipper\n')
+        else:
+            sh_file.write(f'#SBATCH --account=def-shopkins\n')
+        #!!!!!!!!!!!!!!!!!!!!!!!!!
+```
+#### Adding support for other file types
+To add support for other programs, extend the `extension_map` dictionary,  add the necessary conditional blocks in the submit_file function, and populate that block with the information necessary to make the SLURM .sh file.
+
 ### Examples
 For submitting one file using 4 cores, 4096mb (4GB) per core, 2h walltime, calling g16 on the default account:
 ```bash
@@ -82,10 +121,4 @@ For submitting all files with a .inp extension (calling ORCA) using 8 cores, 409
 subSLURM all -n 8 -m 4096mb -t 1d12h -p orca -a rrg -temp false
 ```
 
-### Customization
-#### Changing Account Credentials
-If you belong to a different group or have different account credentials, you will need to modify the script to reflect your account details. Look for the section marked with !!!!!!!!!!!!!!!!!!!!!!!!! in the code, and update the account information with your Compute Canada information.
-
-#### Adding support for other file types
-To add support for other programs, extend the `extension_map` dictionary,  add the necessary conditional blocks in the submit_file function, and populate that block with the information necessary to make the SLURM .sh file.
 
