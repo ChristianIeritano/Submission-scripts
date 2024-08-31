@@ -101,7 +101,7 @@ def submit_file(directory, file_name, sub_info):
                 if sub_info['tmp_dir'].lower() == 'true':
                     
                     # Update the copy file list to prevent copying any existing ORCA outputs to the SLURM tempdir. Otherwise, once the calc finishes, it will overwrite the .out file being written to your local directory :(
-                    files_to_copy_orca = [f for f in files_to_copy if not f.endswith('.out')]
+                    files_to_copy_orca = [f for f in files_to_copy if not f.endswith('.out') or f.endswith('.sh')]
                     
                     #copy all files w/ the same basename has the input
                     for file in files_to_copy_orca:
