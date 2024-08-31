@@ -17,8 +17,11 @@ def submit_file(directory, file_name, sub_info):
     timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
     sh_file_path = os.path.join(directory, f'{file_name.split(".")[0]}_{timestamp}.sh')
 
-    #define list of files with the same basename - useful for copying to SLURM TMP_dir
-    files_to_copy = [f for f in os.listdir(os.getcwd()) if f.startswith(file_name.rsplit('.', 1)[0])]
+    #define list of files with the same basename for copying to SLURM TMP_dir - avoiding substring matching because files can be File_1 and File_10, etc. 
+    #info on SLURM tempdir can be found at https://docs.alliancecan.ca/wiki/Using_node-local_storage
+    base_name = file_name.rsplit('.', 1)[0]
+    pattern = re.compile(f"^{re.escape(base_name)}(?:_|\..*)?$")
+    files_to_copy = [f for f in os.listdir(os.getcwd()) if pattern.match(f)]
     
     with open(sh_file_path, 'w') as sh_file:
         sh_file.write('#!/bin/bash\n')
@@ -45,7 +48,6 @@ def submit_file(directory, file_name, sub_info):
 
         #defining this to its own variable for later convienence
         program = sub_info['program']
-
 
        #######   Gaussian  #######
         if sub_info['program'] == 'g16':
@@ -100,7 +102,8 @@ def submit_file(directory, file_name, sub_info):
                 if sub_info['tmp_dir'].lower() == 'true':
                     
                     #copy all files w/ the same basename has the input
-                    sh_file.write(f'cp ${{SLURM_SUBMIT_DIR}}/{file_name.rsplit(".", 1)[0]}* ${{SLURM_TMPDIR}}/\n')
+                    for file in files_to_copy:
+                        sh_file.write(f'cp ${{SLURM_SUBMIT_DIR}}/{file}* ${{SLURM_TMPDIR}}/\n')
                     
                     #change to temp dir so that ORCA runs out of it
                     sh_file.write('cd ${SLURM_TMPDIR}\n\n') 
@@ -110,6 +113,7 @@ def submit_file(directory, file_name, sub_info):
 
                 #if using a temp dir, once the calc finishes, copy all files from it
                 if sub_info['tmp_dir'].lower() == 'true':
+                    
                     sh_file.write(f'cp ${{SLURM_TMPDIR}}/* ${{SLURM_SUBMIT_DIR}}/\n\n')
             
             #if not ruunning on Sharcnet, then /tmp directories and ORCA versions might not matter. Just call ORCA :)
