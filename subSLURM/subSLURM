@@ -38,7 +38,6 @@ def submit_file(directory, file_name, sub_info):
         #!!!!!!!!!!!!!!!!!!!!!!!!!
         
         #write the runtime and CPU information to the .sh file
-        
         sh_file.writelines([
             f'#SBATCH --time={sub_info["time"]}\n',
             '#SBATCH -N 1\n',
@@ -103,7 +102,7 @@ def submit_file(directory, file_name, sub_info):
                     
                     #copy all files w/ the same basename has the input
                     for file in files_to_copy:
-                        sh_file.write(f'cp ${{SLURM_SUBMIT_DIR}}/{file}* ${{SLURM_TMPDIR}}/\n')
+                        sh_file.write(f'cp ${{SLURM_SUBMIT_DIR}}/{file} ${{SLURM_TMPDIR}}/\n')
                     
                     #change to temp dir so that ORCA runs out of it
                     sh_file.write('cd ${SLURM_TMPDIR}\n\n') 
