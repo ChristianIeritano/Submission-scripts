@@ -100,8 +100,11 @@ def submit_file(directory, file_name, sub_info):
                 #special temporary directory stuff unique to DRAC clusters. Foir info, see https://docs.alliancecan.ca/wiki/Using_node-local_storage
                 if sub_info['tmp_dir'].lower() == 'true':
                     
+                    # Update the copy file list to prevent copying any existing ORCA outputs to the SLURM tempdir. Otherwise, once the calc finishes, it will overwrite the .out file being written to your local directory :(
+                    files_to_copy_orca = [f for f in files_to_copy if not f.endswith('.out')]
+                    
                     #copy all files w/ the same basename has the input
-                    for file in files_to_copy:
+                    for file in files_to_copy_orca:
                         sh_file.write(f'cp ${{SLURM_SUBMIT_DIR}}/{file} ${{SLURM_TMPDIR}}/\n')
                     
                     #change to temp dir so that ORCA runs out of it
