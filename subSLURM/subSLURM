@@ -131,6 +131,10 @@ def submit_file(directory, file_name, sub_info):
         elif sub_info['program'] == 'crest':
             sh_file.write(f'\nsrun crest {file_name} --gfn2 -T {sub_info["ncores"]} --chrg 1\n\n') 
 
+        #######   CENSO  #######
+        elif sub_info['program'] == 'cense':
+            sh_file.write(f'\nsrun censo -inp {file_name} \n') #takes inputfile as command line arguements. censo settings read in from .censorc. See https://github.com/grimme-lab/CENSO
+
 	#Submit the job
     submit_command = f'sbatch {sh_file_path}'
     
@@ -292,7 +296,8 @@ def main():
         'orca6': '.inp', 
         'orca6nbo': '.inp', 
         'mobcal': '.mfj', 
-        'crest': '.xyz'} #dictionary of file extensions based on program arguement input
+        'crest': '.xyz',
+        'censo': 'xyz'} #dictionary of file extensions based on program arguement input
 
     #### METHOD CHECK ####
     if sub_info['program'] not in extension_map:
