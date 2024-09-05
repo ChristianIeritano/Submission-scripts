@@ -191,12 +191,7 @@ def main():
         print('  subSLURM all -n #-m ####mb -t #d-#h:#m -p g16/python/orca -a def/rrg [-temp true/false]')
         print('    for submission of multiple files')
         return
-
-    #### METHOD CHECK ####
-    if not sub_info['program'] in ['g16', 'g16c', 'python', 'orca5', 'orca6', 'orca6nbo', 'mobcal']:
-        print(f"The program argument (-p) provided: {sub_info['program']} is not an accepted value. It must be one of: g16, g16c, py, orca5, orca6, or mobcal.")
-        return
-    
+   
     #Function to check if a string represents an integer
     def is_integer(s):
         try:
@@ -299,6 +294,11 @@ def main():
         'mobcal': '.mfj', 
         'crest': '.xyz'} #dictionary of file extensions based on program arguement input
 
+    #### METHOD CHECK ####
+    if sub_info['program'] not in extension_map:
+        print(f"The program argument (-p) provided: {sub_info['program']} is not an accepted value. It must be one of: g16, g16c, py, orca5, orca6, or mobcal.")
+        return
+    
     #workflow for submitting all jobs with the matching extension in the cwd
     if sub_info['file_name'] == 'all':
         
