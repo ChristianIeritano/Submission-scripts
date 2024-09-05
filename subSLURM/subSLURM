@@ -133,6 +133,11 @@ def submit_file(directory, file_name, sub_info):
 
         #######   CENSO  #######
         elif sub_info['program'] == 'censo':
+            
+            #censo needs ORCA
+            if Sharcnet: 
+                sh_file.write('module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n\n',)
+
             sh_file.write(f'\nsrun censo -inp {file_name} \n') #takes inputfile as command line arguements. censo settings read in from .censorc. See https://github.com/grimme-lab/CENSO
 
 	#Submit the job
