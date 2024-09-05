@@ -132,7 +132,7 @@ def submit_file(directory, file_name, sub_info):
             sh_file.write(f'\nsrun crest {file_name} --gfn2 -T {sub_info["ncores"]} --chrg 1\n\n') 
 
         #######   CENSO  #######
-        elif sub_info['program'] == 'cense':
+        elif sub_info['program'] == 'censo':
             sh_file.write(f'\nsrun censo -inp {file_name} \n') #takes inputfile as command line arguements. censo settings read in from .censorc. See https://github.com/grimme-lab/CENSO
 
 	#Submit the job
@@ -301,7 +301,7 @@ def main():
 
     #### METHOD CHECK ####
     if sub_info['program'] not in extension_map:
-        print(f"The program argument (-p) provided: {sub_info['program']} is not an accepted value. It must be one of: g16, g16c, py, orca5, orca6, or mobcal.")
+        print(f"The program argument (-p) provided: {sub_info['program']} is not an accepted value. It must be one of {', '.join(extension_map.keys())}.")
         return
     
     #workflow for submitting all jobs with the matching extension in the cwd
