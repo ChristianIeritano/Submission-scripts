@@ -85,12 +85,13 @@ def submit_file(directory, file_name, sub_info):
 
             #   Write info to sh file for censo
             sh_file.writelines([
-                '--nodes-N 1\n',
-                f'--ntasks={ncores_mod}\n',
-                '--cpus-per-task=4\n',
-                f'--mem-per-cpu={sub_info["memory"]}\n',
-                f'--time={sub_info["time"]}\n',
+                '#SBATCH --nodes-N 1\n',
+                f'#BATCH --ntasks={ncores_mod}\n',
+                '#SBATCH --cpus-per-task=4\n',
+                f'#SBATCH --mem-per-cpu={sub_info["memory"]}\n',
+                f'#SBATCH --time={sub_info["time"]}\n',
                 '\n',
+                'export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK\n',
                 'module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n',
                 '\n',
                 f'srun --cpus-per-task=$SLURM_CPUS_PER_TASK censo -inp {file_name} > {file_name.rsplit(".", 1)[0]}_censo.out\n\n' #takes inputfile as command line arguements. censo settings read in from .censorc. See https://github.com/grimme-lab/CENSO
