@@ -76,7 +76,7 @@ def submit_file(directory, file_name, sub_info):
             sh_file.write(f'{program} {file_name} > {file_name.replace(".py", "")}.out\n')
         
         #######   ORCA  #######
-        elif 'orca' in sub_info['program']:
+        elif 'orca' or 'censo' in sub_info['program']:
             sh_file.write(f'#SBATCH --output={file_name.rsplit(".", 1)[0]}.out\n\n')
 
             if Sharcnet:
@@ -85,10 +85,10 @@ def submit_file(directory, file_name, sub_info):
                 if sub_info['program'].lower() == 'orca5':
                     sh_file.write('module load StdEnv/2020 gcc/10.3.0 openmpi/4.1.1 orca/5.0.4\n\n')
 
-                #ORCA 6.0.0 on Sharcwebz
-                elif sub_info['program'].lower() == 'orca6': 
+                #ORCA 6.0.0 on Sharcwebz; censo integration with ORCA requires the module to load
+                elif sub_info['program'].lower() == 'orca6' or 'censo': 
                     sh_file.write('module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n\n',)
-                
+
                 #Special call for NBO in ORCA 6.0.0 on Sharcwebz
                 elif sub_info['program'].lower() == 'orca6nbo': 
 
@@ -120,13 +120,21 @@ def submit_file(directory, file_name, sub_info):
                     #change to temp dir so that ORCA runs out of it
                     sh_file.write('cd ${SLURM_TMPDIR}\n\n') 
 
-                #write the commend to run orca on the defined input file    
-                sh_file.write(f'$EBROOTORCA/orca {file_name}\n')
+                #######   CENSO   #######
+                if sub_info['program'].lower() == 'censo': 
 
-                #if using a temp dir, once the calc finishes, copy all files from it
-                if sub_info['tmp_dir'].lower() == 'true':
+                    sh_file.write(f'srun censo -inp {file_name} > {file_name.rsplit(".", 1)[0]}_censo.out\n\n') #takes inputfile as command line arguements. censo settings read in from .censorc. See https://github.com/grimme-lab/CENSO
+                
+                #######   ORCA   #######
+                else:
                     
-                    sh_file.write(f'cp ${{SLURM_TMPDIR}}/* ${{SLURM_SUBMIT_DIR}}/\n\n')
+                    #write the commend to run orca on the defined input file    
+                    sh_file.write(f'$EBROOTORCA/orca {file_name}\n')
+
+                    #if using a temp dir, once the calc finishes, copy all files from it
+                    if sub_info['tmp_dir'].lower() == 'true':
+                        
+                        sh_file.write(f'cp ${{SLURM_TMPDIR}}/* ${{SLURM_SUBMIT_DIR}}/\n\n')
             
             #if not ruunning on Sharcnet, then /tmp directories and ORCA versions might not matter. Just call ORCA :)
             else:
@@ -141,15 +149,6 @@ def submit_file(directory, file_name, sub_info):
         elif sub_info['program'] == 'crest':
             sh_file.write(f'\nsrun crest {file_name} --gfn2 -T {sub_info["ncores"]} --chrg 1\n\n') 
         
-        #######   CENSO  #######
-        elif sub_info['program'] == 'censo':
-            
-            #censo needs ORCA
-            if Sharcnet: 
-                sh_file.write('\nmodule load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n\n',)
-
-            sh_file.write(f'srun censo -inp {file_name} > {file_name.rsplit(".", 1)[0]}_censo.out\n\n') #takes inputfile as command line arguements. censo settings read in from .censorc. See https://github.com/grimme-lab/CENSO
-
 	#Submit the job
     submit_command = f'sbatch {sh_file_path}'
     
