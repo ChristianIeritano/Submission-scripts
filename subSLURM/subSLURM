@@ -77,8 +77,15 @@ def submit_file(directory, file_name, sub_info):
         
         #######   ORCA  #######
         elif 'orca' or 'censo' in sub_info['program']:
-            sh_file.write(f'#SBATCH --output={file_name.rsplit(".", 1)[0]}.out\n\n')
+            
+            # output name           
+            if 'censo' in sub_info['program']: 
+                sh_file.write(f'#SBATCH --output={file_name.rsplit(".", 1)[0]}_censo.out\n\n')
 
+            else:
+                sh_file.write(f'#SBATCH --output={file_name.rsplit(".", 1)[0]}.out\n\n')
+
+            # compute canada specific stuffs
             if Sharcnet:
                 
                 #ORCA 5.0.4 on Sharcwebz
@@ -123,7 +130,7 @@ def submit_file(directory, file_name, sub_info):
                 #######   CENSO   #######
                 if sub_info['program'].lower() == 'censo': 
 
-                    sh_file.write(f'srun censo -inp {file_name} > {file_name.rsplit(".", 1)[0]}_censo.out\n\n') #takes inputfile as command line arguements. censo settings read in from .censorc. See https://github.com/grimme-lab/CENSO
+                    sh_file.write(f'srun censo -inp {file_name}\n\n') #takes inputfile as command line arguements. censo settings read in from .censorc. See https://github.com/grimme-lab/CENSO
                 
                 #######   ORCA   #######
                 else:
