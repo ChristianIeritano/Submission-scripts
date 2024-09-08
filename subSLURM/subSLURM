@@ -51,7 +51,7 @@ def submit_file(directory, file_name, sub_info):
         if sub_info['program'] == 'censo':
 
             def adjust_ncores(sub_info):
-                """
+                '''
                 Adjust the 'ncores' entry to ensure it's divisible by 4 and capped by the server limits. Only for censo calcs
 
                 Graham: 32 cores per node
@@ -59,21 +59,24 @@ def submit_file(directory, file_name, sub_info):
 
                 Parameters:
                 sub_info (dict): Dictionary containing submission information, including 'ncores' and 'server'.
-                """
+                '''
                 
                 #   Get name of CC clusters
                 server_name = socket.gethostname()
 
+                #   Get ncores from dict as int
+                ncores = int(sub_info.get("ncores"))
+
                 #   Ensure ncores is divisible by 4
-                if sub_info.get("ncores") % 4 != 0:
-                    ncores_mod = (sub_info["ncores"] // 4) * 4  #   Round down to the nearest multiple of 4
+                if ncores % 4 != 0:
+                    ncores_mod = (ncores // 4) * 4  #   Round down to the nearest multiple of 4
 
                 #   Apply server-specific limits
                 if 'narval' in server_name:
-                    ncores_mod = min(sub_info["ncores"], 64)  # Cap at 64 cores for Narval
+                    ncores_mod = min(ncores, 64)  # Cap at 64 cores for Narval
 
                 else:
-                    ncores_mod = min(sub_info["ncores"], 32)  # Failsafe cap at 32 cores - for the rest of CC clusters
+                    ncores_mod = min(ncores, 32)  # Failsafe cap at 32 cores - for the rest of CC clusters
 
                 return ncores_mod
 
