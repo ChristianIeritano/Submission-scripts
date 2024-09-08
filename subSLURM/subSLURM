@@ -87,7 +87,7 @@ def submit_file(directory, file_name, sub_info):
             sh_file.writelines([
                 '--nodes-N 1\n',
                 f'--ntasks={ncores_mod}\n',
-                '--cpus-per-task=4',
+                '--cpus-per-task=4\n',
                 f'--mem-per-cpu={sub_info["memory"]}\n',
                 f'--time={sub_info["time"]}\n',
                 '\n',
