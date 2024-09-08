@@ -85,7 +85,7 @@ def submit_file(directory, file_name, sub_info):
 
             #   Write info to sh file for censo
             sh_file.writelines([
-                '#SBATCH --nodes-N 1\n',
+                '#SBATCH --nodes=1\n',
                 f'#BATCH --ntasks={ncores_mod}\n',
                 '#SBATCH --cpus-per-task=4\n',
                 f'#SBATCH --mem-per-cpu={sub_info["memory"]}\n',
