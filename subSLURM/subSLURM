@@ -4,6 +4,26 @@ import os
 import sys
 import time
 import re
+import socket 
+
+#Function to define user account
+def write_sbatch_account(sub_info, sh_file):
+    """
+    Writes the appropriate SBATCH account line based on the 'account' key in sub_info.
+
+    Parameters:
+    sub_info (dict): A dictionary containing submission info, including the 'account' key.
+    sh_file (file object): The open file object to write the SBATCH line to.
+    """
+    
+    sh_file.write('#!/bin/bash\n\n')
+    
+    if sub_info['account'] == 'rrg':
+        sh_file.write(f'#SBATCH --account=rrg-shopkins-ab\n')
+    elif sub_info['account'] == 'derek':
+        sh_file.write(f'#SBATCH --account=def-schipper\n')
+    else:
+        sh_file.write(f'#SBATCH --account=def-shopkins\n')
 
 #Function to submit a job file
 def submit_file(directory, file_name, sub_info):
@@ -23,123 +43,162 @@ def submit_file(directory, file_name, sub_info):
     pattern = re.compile(f"^{re.escape(base_name)}(?:_|\..*)?$")
     files_to_copy = [f for f in os.listdir(os.getcwd()) if pattern.match(f)]
     
+    #write SLURM account info
     with open(sh_file_path, 'w') as sh_file:
-        sh_file.write('#!/bin/bash\n')
-        
-        #!!!!!!!!!!!!!!!!!!!!!!!!!
-        #This is where you define your compute canada account. If you are another group using this code, you will need to change this to your groups access credentials!
-        if sub_info['account'] == 'rrg':
-            sh_file.write(f'#SBATCH --account=rrg-shopkins-ab\n')
+        write_sbatch_account(sub_info, sh_file)
 
-        elif sub_info['account'] == 'derek':
-            sh_file.write(f'#SBATCH --account=def-schipper\n')
+        #Need to do some special threading stuff for censo
+        if sub_info['program'] == 'censo':
+
+            def adjust_ncores(sub_info):
+                """
+                Adjust the 'ncores' entry to ensure it's divisible by 4 and capped by the server limits. Only for censo calcs
+
+                Graham: 32 cores per node
+                Narval: 64 cores per node
+
+                Parameters:
+                sub_info (dict): Dictionary containing submission information, including 'ncores' and 'server'.
+                """
+                
+                #   Get name of CC clusters
+                server_name = socket.gethostname()
+
+                #   Ensure ncores is divisible by 4
+                if sub_info.get("ncores") % 4 != 0:
+                    ncores_mod = (sub_info["ncores"] // 4) * 4  #   Round down to the nearest multiple of 4
+
+                #   Apply server-specific limits
+                if 'narval' in server_name:
+                    ncores_mod = min(sub_info["ncores"], 64)  # Cap at 64 cores for Narval
+
+                else:
+                    ncores_mod = min(sub_info["ncores"], 32)  # Failsafe cap at 32 cores - for the rest of CC clusters
+
+                return ncores_mod
+
+            #   Adjust the ncores value before writing
+            ncores_mod = adjust_ncores(sub_info)
+
+            #   Write info to sh file for censo
+            sh_file.writelines([
+                '--nodes-N 1\n',
+                f'--ntasks={ncores_mod}\n',
+                '--cpus-per-task=4',
+                f'--mem-per-cpu={sub_info["memory"]}\n',
+                f'--time={sub_info["time"]}\n',
+                '\n',
+                'module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n',
+                '\n',
+                f'srun --cpus-per-task=$SLURM_CPUS_PER_TASK censo -inp {file_name} > {file_name.rsplit(".", 1)[0]}_censo.out\n\n' #takes inputfile as command line arguements. censo settings read in from .censorc. See https://github.com/grimme-lab/CENSO
+                ])        
+
         else:
-            sh_file.write(f'#SBATCH --account=def-shopkins\n')
-        #!!!!!!!!!!!!!!!!!!!!!!!!!
-        
-        #write the runtime and CPU information to the .sh file
-        sh_file.writelines([
-            f'#SBATCH --time={sub_info["time"]}\n',
-            '#SBATCH -N 1\n',
-            f'#SBATCH --ntasks={sub_info["ncores"]}\n',
-            f'#SBATCH --mem-per-cpu={sub_info["memory"]}\n',
-            ])        
 
-        #defining this to its own variable for later convienence
-        program = sub_info['program']
+            #write the runtime and CPU information to the .sh file
+            sh_file.writelines([
+                f'#SBATCH --time={sub_info["time"]}\n',
+                '#SBATCH -N 1\n',
+                f'#SBATCH --ntasks={sub_info["ncores"]}\n',
+                f'#SBATCH --mem-per-cpu={sub_info["memory"]}\n',
+                ])        
 
-       #######   Gaussian  #######
-        if sub_info['program'] == 'g16':
-            sh_file.write(f'#SBATCH --output={file_name.rsplit(".", 1)[0]}.log\n\n')
-            
-            #special syntax for SLURM on compute canada
-            if Sharcnet:
-                sh_file.write('module load gaussian/g16.c01\n')
+            #defining this to its own variable for later convienence
+            program = sub_info['program']
 
-            sh_file.write(f'G16 {file_name}\n') #syntax difference between G16 and g16 - since .rwf files can get very large very fast, its best to not save those unless absolutely necessary. g16 saves by default, G16 does not 
-
-        #######   Python  #######
-        elif sub_info['program'] == 'python':
-            if Sharcnet:
-                sh_file.write('\nmodule load python/3.10\n')
-
-            sh_file.write(f'{program} {file_name} > {file_name.replace(".py", "")}.out\n')
-        
-        #######   ORCA  #######
-        elif 'orca' in sub_info['program']:
-            sh_file.write(f'#SBATCH --output={file_name.rsplit(".", 1)[0]}.out\n\n')
-
-            if Sharcnet:
+        #######   Gaussian  #######
+            if sub_info['program'] == 'g16':
+                sh_file.write(f'#SBATCH --output={file_name.rsplit(".", 1)[0]}.log\n\n')
                 
-                #ORCA 5.0.4 on Sharcwebz
-                if sub_info['program'].lower() == 'orca5':
-                    sh_file.write('module load StdEnv/2020 gcc/10.3.0 openmpi/4.1.1 orca/5.0.4\n\n')
+                #special syntax for SLURM on compute canada
+                if Sharcnet:
+                    sh_file.write('module load gaussian/g16.c01\n')
 
-                #ORCA 6.0.0 on Sharcwebz
-                elif sub_info['program'].lower() == 'orca6': 
-                    sh_file.write('module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n\n',)
-                
-                #Special call for NBO in ORCA 6.0.0 on Sharcwebz
-                elif sub_info['program'].lower() == 'orca6nbo': 
+                sh_file.write(f'G16 {file_name}\n') #syntax difference between G16 and g16 - since .rwf files can get very large very fast, its best to not save those unless absolutely necessary. g16 saves by default, G16 does not 
 
-                    sh_file.writelines([
-                        'module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n',
-                        'module load gaussian/g16.c01\n',
-                        '\n',
+            #######   Python  #######
+            elif sub_info['program'] == 'python':
+                if Sharcnet:
+                    sh_file.write('\nmodule load python/3.10\n')
 
-                        r'export GENEXE=`which gennbo.i4.exe`',
-                        '\n',                    
-                        r'export NBOEXE=`which nbo7.i4.exe`',
-                        '\n\n',
-                    ])
-                
-                else: 
-                    print(f'Unrecognized ORCA program: {sub_info["program"]}.')
-                    return None
-
-                #special temporary directory stuff unique to DRAC clusters. Foir info, see https://docs.alliancecan.ca/wiki/Using_node-local_storage
-                if sub_info['tmp_dir'].lower() == 'true':
-                    
-                    # Update the copy file list to prevent copying any existing ORCA outputs to the SLURM tempdir. Otherwise, once the calc finishes, it will overwrite the .out file being written to your local directory :(
-                    files_to_copy_orca = [f for f in files_to_copy if not f.endswith('.out') or f.endswith('.sh')]
-                    
-                    #copy all files w/ the same basename has the input
-                    for file in files_to_copy_orca:
-                        sh_file.write(f'cp ${{SLURM_SUBMIT_DIR}}/{file} ${{SLURM_TMPDIR}}/\n')
-                    
-                    #change to temp dir so that ORCA runs out of it
-                    sh_file.write('cd ${SLURM_TMPDIR}\n\n') 
-
-                #write the commend to run orca on the defined input file    
-                sh_file.write(f'$EBROOTORCA/orca {file_name}\n')
-
-                #if using a temp dir, once the calc finishes, copy all files from it
-                if sub_info['tmp_dir'].lower() == 'true':
-                    
-                    sh_file.write(f'cp ${{SLURM_TMPDIR}}/* ${{SLURM_SUBMIT_DIR}}/\n\n')
+                sh_file.write(f'{program} {file_name} > {file_name.replace(".py", "")}.out\n')
             
-            #if not ruunning on Sharcnet, then /tmp directories and ORCA versions might not matter. Just call ORCA :)
-            else:
-                sh_file.write(f'/mnt/Scratch/programs/orca/orca {file_name}\n\n')
+            #######   ORCA  #######
+            elif 'orca' in sub_info['program']:
+                sh_file.write(f'#SBATCH --output={file_name.rsplit(".", 1)[0]}.out\n\n')
 
-        #######   MobCal-MPI  #######
-        elif sub_info['program'] == 'mobcal':
-            sh_file.write(f'\nsrun MobCal_MPI_203.exe {file_name} {file_name.rsplit(".", 1)[0]}.mout\n\n') #takes inputfile and outputfile names as command line arguements
+                if Sharcnet:
+                    
+                    #ORCA 5.0.4 on Sharcwebz
+                    if sub_info['program'].lower() == 'orca5':
+                        sh_file.write('module load StdEnv/2020 gcc/10.3.0 openmpi/4.1.1 orca/5.0.4\n\n')
 
-        #######   CREST   #######
-        #Note that this submission script is specific to +1 cations with a gas phase model. You will need to change the line below if you want it to do other things. Adding CREST specific terms to subSLURM would be too tedious otherwise.
-        elif sub_info['program'] == 'crest':
-            sh_file.write(f'\nsrun crest {file_name} --gfn2 -T {sub_info["ncores"]} --chrg 1\n\n') 
+                    #ORCA 6.0.0 on Sharcwebz
+                    elif sub_info['program'].lower() == 'orca6': 
+                        sh_file.write('module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n\n',)
+                    
+                    #Special call for NBO in ORCA 6.0.0 on Sharcwebz
+                    elif sub_info['program'].lower() == 'orca6nbo': 
 
-        #######   CENSO  #######
-        elif sub_info['program'] == 'censo':
+                        sh_file.writelines([
+                            'module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n',
+                            'module load gaussian/g16.c01\n',
+                            '\n',
+
+                            r'export GENEXE=`which gennbo.i4.exe`',
+                            '\n',                    
+                            r'export NBOEXE=`which nbo7.i4.exe`',
+                            '\n\n',
+                        ])
+                    
+                    else: 
+                        print(f'Unrecognized ORCA program: {sub_info["program"]}.')
+                        return None
+
+                    #special temporary directory stuff unique to DRAC clusters. Foir info, see https://docs.alliancecan.ca/wiki/Using_node-local_storage
+                    if sub_info['tmp_dir'].lower() == 'true':
+                        
+                        # Update the copy file list to prevent copying any existing ORCA outputs to the SLURM tempdir. Otherwise, once the calc finishes, it will overwrite the .out file being written to your local directory :(
+                        files_to_copy_orca = [f for f in files_to_copy if not f.endswith('.out') or f.endswith('.sh')]
+                        
+                        #copy all files w/ the same basename has the input
+                        for file in files_to_copy_orca:
+                            sh_file.write(f'cp ${{SLURM_SUBMIT_DIR}}/{file} ${{SLURM_TMPDIR}}/\n')
+                        
+                        #change to temp dir so that ORCA runs out of it
+                        sh_file.write('cd ${SLURM_TMPDIR}\n\n') 
+
+                    #write the commend to run orca on the defined input file    
+                    sh_file.write(f'$EBROOTORCA/orca {file_name}\n')
+
+                    #if using a temp dir, once the calc finishes, copy all files from it
+                    if sub_info['tmp_dir'].lower() == 'true':
+                        
+                        sh_file.write(f'cp ${{SLURM_TMPDIR}}/* ${{SLURM_SUBMIT_DIR}}/\n\n')
+                
+                #if not ruunning on Sharcnet, then /tmp directories and ORCA versions might not matter. Just call ORCA :)
+                else:
+                    sh_file.write(f'/mnt/Scratch/programs/orca/orca {file_name}\n\n')
+
+            #######   MobCal-MPI  #######
+            elif sub_info['program'] == 'mobcal':
+                sh_file.write(f'\nsrun MobCal_MPI_203.exe {file_name} {file_name.rsplit(".", 1)[0]}.mout\n\n') #takes inputfile and outputfile names as command line arguements
+
+            #######   CREST   #######
+            #Note that this submission script is specific to +1 cations with a gas phase model. You will need to change the line below if you want it to do other things. Adding CREST specific terms to subSLURM would be too tedious otherwise.
+            elif sub_info['program'] == 'crest':
+                sh_file.write(f'\nsrun crest {file_name} --gfn2 -T {sub_info["ncores"]} --chrg 1\n\n') 
             
-            #censo needs ORCA
-            if Sharcnet: 
-                sh_file.write('\nmodule load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n\n',)
+            '''
+            #######   CENSO  #######
+            elif sub_info['program'] == 'censo':
+                
+                #censo needs ORCA
+                if Sharcnet: 
+                    sh_file.write('\nmodule load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n\n',)
 
-            sh_file.write(f'srun censo -inp {file_name} > {file_name.rsplit(".", 1)[0]}_censo.out\n\n') #takes inputfile as command line arguements. censo settings read in from .censorc. See https://github.com/grimme-lab/CENSO
-
+                sh_file.write(f'srun censo -inp {file_name} > {file_name.rsplit(".", 1)[0]}_censo.out\n\n') #takes inputfile as command line arguements. censo settings read in from .censorc. See https://github.com/grimme-lab/CENSO
+            '''
 	#Submit the job
     submit_command = f'sbatch {sh_file_path}'
     
