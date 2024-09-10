@@ -84,26 +84,22 @@ def submit_file(directory, file_name, sub_info):
             if Sharcnet:
                 
                 #ORCA 5.0.4 on Sharcwebz
-                if sub_info['program'].lower() == 'orca5':
+                if 'orca5' in sub_info['program'].lower():
                     sh_file.write('module load StdEnv/2020 gcc/10.3.0 openmpi/4.1.1 orca/5.0.4\n\n')
 
                 #ORCA 6.0.0 on Sharcwebz
-                elif sub_info['program'].lower() == 'orca6':
+                elif 'orca6' in sub_info['program'].lower():
                     sh_file.write('module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n\n')
 
-                #Special call for NBO in ORCA 6.0.0 on Sharcwebz
-                elif sub_info['program'].lower() == 'orca6nbo': 
-
+                #Special call for NBO on Sharcwebz
+                elif 'nbo' in sub_info['program'].lower():
                     sh_file.writelines([
-                        'module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n',
                         'module load gaussian/g16.c01\n',
-                        '\n',
-
                         r'export GENEXE=`which gennbo.i4.exe`',
                         '\n',                    
                         r'export NBOEXE=`which nbo7.i4.exe`',
                         '\n\n',
-                    ])
+                    ])                
                 
                 else: 
                     print(f'Unrecognized ORCA program: {sub_info["program"]}.')
@@ -308,6 +304,7 @@ def main():
         'g16c': '.gjf', 
         'python': '.py', 
         'orca5': '.inp', 
+        'orca5nbo': '.inp', 
         'orca6': '.inp', 
         'orca6nbo': '.inp', 
         'mobcal': '.mfj', 
