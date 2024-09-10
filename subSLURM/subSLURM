@@ -83,27 +83,27 @@ def submit_file(directory, file_name, sub_info):
             # compute canada specific stuffs
             if Sharcnet:
                 
-                #ORCA 5.0.4 on Sharcwebz
+                #ORCA 5.0.4 on Sharcwebz - need to do "in" searches because of the possibility that the user wants to do NBO jobs
                 if 'orca5' in sub_info['program'].lower():
                     sh_file.write('module load StdEnv/2020 gcc/10.3.0 openmpi/4.1.1 orca/5.0.4\n\n')
 
-                #ORCA 6.0.0 on Sharcwebz
+                #ORCA 6.0.0 on Sharcwebz - need to do "in" searches because of the possibility that the user wants to do NBO jobs
                 elif 'orca6' in sub_info['program'].lower():
                     sh_file.write('module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n\n')
+                
+                else: 
+                    print(f'Unrecognized ORCA program: {sub_info["program"]}.')
+                    return None
 
                 #Special call for NBO on Sharcwebz
-                elif 'nbo' in sub_info['program'].lower():
+                if 'nbo' in sub_info['program'].lower():
                     sh_file.writelines([
                         'module load gaussian/g16.c01\n',
                         r'export GENEXE=`which gennbo.i4.exe`',
                         '\n',                    
                         r'export NBOEXE=`which nbo7.i4.exe`',
                         '\n\n',
-                    ])                
-                
-                else: 
-                    print(f'Unrecognized ORCA program: {sub_info["program"]}.')
-                    return None
+                    ])               
 
                 #if using a temp dir, once the calc finishes, copy all files from it
                 if sub_info['tmp_dir'].lower() == 'true':
@@ -155,6 +155,7 @@ def submit_file(directory, file_name, sub_info):
     
     except Exception as e:
         print(f'An unexcepted error occured when submitting {os.path.basename(file_name)}: {e}')
+        return
 
 #Main execution logic for handling command-line arguments
 def main():
