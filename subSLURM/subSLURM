@@ -25,14 +25,33 @@ def write_sbatch_account(sub_info, sh_file):
     else:
         sh_file.write(f'#SBATCH --account=def-shopkins\n')
 
+#Function to check if you are on a DRAC/Compute canada cluster. Returns Tue is you are and false if you are not. 
+def DRAC_cluster_check(cluster_name):
+    
+    #dictionary for store names and pseudonyms for DRAC clusters
+    cluster_names = {
+        'narval' : ['narval', 'calcul', 'quebec'], #Server Name: narval3.narval.calcul.quebec
+        'graham' : ['gra', 'login'], #Server Name: gra-login2
+        'cedar' : ['computecanada', 'cedar'], #Server Name: cedar1.int.cedar.computecanada.ca
+        'beluga' : ['beluga', 'calcul', 'quebec'], #Server name: beluga4.int.ets1.calculquebec.ca
+        'niagara' : ['compute', 'canada', 'niagara']
+    }
+
+    for pseudonyms in cluster_names.values():
+        
+        #Iterate over dict entries to see if the cluster name. If match, return true. Otherwise return false
+        if any(pseudo in cluster_name for pseudo in pseudonyms):
+            return True 
+        
+        else:
+            return False
+        
 #Function to submit a job file
 def submit_file(directory, file_name, sub_info):
-    
-    #Determine the user's scratch directory and set up sh_files directory
-    username = getpass.getuser()
 
-    #Determine if running on Sharcnet
-    Sharcnet = os.path.exists(f'/scratch/{username}')
+    #Determine if running on Compute Canada / DRAC cluster
+    cluster_name = str(socket.gethostname()).lower() #get name of cluster that you are connected to and ensure it is lowercase for matching w/ dict in DRAC_cluster_check
+    CC_cluster = DRAC_cluster_check(cluster_name) #compute canada cluster
 
     timestamp = time.strftime('%Y-%m-%d_%H-%M-%S')
     sh_file_path = os.path.join(directory, f'{file_name.split(".")[0]}_{timestamp}.sh')
@@ -63,14 +82,14 @@ def submit_file(directory, file_name, sub_info):
             sh_file.write(f'#SBATCH --output={file_name.rsplit(".", 1)[0]}.log\n\n')
             
             #special syntax for SLURM on compute canada
-            if Sharcnet:
+            if CC_cluster:
                 sh_file.write('module load gaussian/g16.c01\n')
 
             sh_file.write(f'G16 {file_name}\n') #syntax difference between G16 and g16 - since .rwf files can get very large very fast, its best to not save those unless absolutely necessary. g16 saves by default, G16 does not 
 
         #######   Python  #######
         elif sub_info['program'] == 'python':
-            if Sharcnet:
+            if CC_cluster:
                 sh_file.write('\nmodule load python/3.10\n')
 
             sh_file.write(f'{program} {file_name} > {file_name.replace(".py", "")}.out\n')
@@ -81,7 +100,7 @@ def submit_file(directory, file_name, sub_info):
             sh_file.write(f'#SBATCH --output={file_name.rsplit(".", 1)[0]}.out\n\n')
 
             # compute canada specific stuffs
-            if Sharcnet:
+            if CC_cluster:
                 
                 #ORCA 5.0.4 on Sharcwebz - need to do "in" searches because of the possibility that the user wants to do NBO jobs
                 if 'orca5' in sub_info['program'].lower():
@@ -141,7 +160,7 @@ def submit_file(directory, file_name, sub_info):
         elif sub_info['program'] == 'censo':
             
             #censo needs ORCA
-            if Sharcnet: 
+            if CC_cluster: 
                 sh_file.write('\nmodule load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n\n',)
 
             sh_file.write(f'srun censo -inp {file_name} > {file_name.rsplit(".", 1)[0]}_censo.out\n\n') #takes inputfile as command line arguements. censo settings read in from .censorc. See https://github.com/grimme-lab/CENSO
