@@ -8,7 +8,7 @@ run = True
 template = False
 
 [screening]
-threshold = 5.0
+threshold = 5.5
 func = r2scan-3c
 basis = def2-TZVP
 prog = orca
