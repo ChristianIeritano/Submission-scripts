@@ -51,6 +51,16 @@ def prepare_job_files(sub_info):
     # Get all .xyz files in the current directory
     xyz_files = [f for f in os.listdir(os.getcwd()) if f.endswith('.xyz')]
 
+    #read censo .py runfile
+    py_files = [file for file in os.listdir(os.getcwd()) if file.endswith('.py')]
+    
+    # Use the first .py file found, or set a default value if none are found
+    if py_files:
+        censo_config_file = os.path.join(os.getcwd(), py_files[0]) #define censo py subfile as first instance of matching py files - there should never be mroe than one
+    else:
+        raise FileNotFoundError("No .py files found in the current directory.")
+
+
     for xyz_file in xyz_files:
         # Create directory for each .xyz file
         base_name = os.path.basename(xyz_file).split(".")[0]
@@ -70,35 +80,29 @@ def prepare_job_files(sub_info):
             return
 
         # Copy and rename censo_config.py file
-        censo_config_file = 'censo_config.py'
+        with open(censo_config_file, 'r') as file:
+            config_content = file.readlines()
+                   
         target_py_file = os.path.join(job_dir, f'{base_name}.py')
-        shutil.copy2(censo_config_file, target_py_file)
-
-        # Modify the copied Python file with the .xyz path, .censo2rc path, charge, and unpaired values
-        with open(target_py_file, 'r') as file:
-            config_content = file.read()
-        
-        config_content = config_content.replace(
-            'workdir = os.getcwd()',
-            f'workdir = "{job_dir}"'
-        )
-
-        config_content = config_content.replace(
-            'ensemble.read_input(input_path, charge=1, unpaired=0)',
-            f'ensemble.read_input(input_path, charge={sub_info["charge"]}, unpaired={sub_info["unpaired"]})'
-        )
-        
-        # Replace the line containing ncores despite what the original value is 
-        config_content = re.sub(
-            r'^\s*Config\.NCORES\s*=\s*\d+\s*$',  # Match the line with "Config.NCORES = <value>"
-            f'Config.NCORES={sub_info["ncores"]}',  
-            config_content,
-            flags=re.MULTILINE #in case mulitple instances are written
-        )
 
         with open(target_py_file, 'w') as file:
-            file.write(config_content)
+            for line in config_content:
+                # Replace 'workdir'
+                if line.lower().startswith('workdir'):
+                    file.write(f'workdir = "{job_dir}"\n')
 
+                # Replace 'ensemble.read_input'
+                elif line.lower().startswith('ensemble.read'):
+                    file.write(f'ensemble.read_input(input_path, charge={sub_info["charge"]}, unpaired={sub_info["unpaired"]})\n')
+
+                # Replace 'Config.NCORES'
+                elif line.lower().startswith('config.ncores'):
+                    file.write(f'Config.NCORES={sub_info["ncores"]}\n')
+
+                # Write other lines as they are
+                else:
+                    file.write(line)
+                    
         # Create and submit the SLURM job file
         submit_file(job_dir, base_name, sub_info)
 
