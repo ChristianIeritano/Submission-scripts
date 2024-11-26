@@ -71,7 +71,7 @@ def submit_file(directory, file_name, sub_info):
             '#SBATCH -N 1\n',
             f'#SBATCH --ntasks={sub_info["ncores"]}\n',
             f'#SBATCH --mem-per-cpu={sub_info["memory"]}\n',
-            f'#SBATCH --error={base_name}.err\n\n',   
+            f'#SBATCH --error={base_name}.err\n',   
             ])    
 
         #defining this to its own variable for later convienence
@@ -140,9 +140,9 @@ def submit_file(directory, file_name, sub_info):
                     for file in files_to_copy_orca:
                         sh_file.write(f'cp ${{SLURM_SUBMIT_DIR}}/{file} ${{SLURM_TMPDIR}}/\n')
                     
-                    sh_file.write('\nif compgen -G "${SLURM_SUBMIT_DIR}/*.xyz" > /dev/null; then\n')
+                    sh_file.write('if compgen -G "${SLURM_SUBMIT_DIR}/*.xyz" > /dev/null; then\n')
                     sh_file.write('    cp ${SLURM_SUBMIT_DIR}/*.xyz ${SLURM_TMPDIR}/\n')
-                    sh_file.write('fi\n')
+                    sh_file.write('fi\n\n')
                     sh_file.write('cd ${SLURM_TMPDIR}\n\n') 
 
                     #Run ORCA and get its PID
