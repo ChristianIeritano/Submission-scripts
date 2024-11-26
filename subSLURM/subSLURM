@@ -71,7 +71,8 @@ def submit_file(directory, file_name, sub_info):
             '#SBATCH -N 1\n',
             f'#SBATCH --ntasks={sub_info["ncores"]}\n',
             f'#SBATCH --mem-per-cpu={sub_info["memory"]}\n',
-            ])        
+            f'#SBATCH --error={base_name}.err\n\n',   
+            ])    
 
         #defining this to its own variable for later convienence
         program = sub_info['program']
@@ -125,19 +126,54 @@ def submit_file(directory, file_name, sub_info):
 
                 #if using a temp dir, once the calc finishes, copy all files from it
                 if sub_info['tmp_dir'].lower() == 'true':
+
+                    # Set up a trap to copy files back if the job is interrupted - directories will not be copied
+                    sh_file.write('# Set up a trap to copy files back if the job is interrupted - directories will not be copied\n')
+                    sh_file.write(f'trap "find ${{SLURM_TMPDIR}} -type f -exec cp {{}} {directory}/ \\;" EXIT\n\n')   
+
                     # Update the copy file list to prevent copying any existing ORCA outputs to the SLURM tempdir. Otherwise, once the calc finishes, it will overwrite the .out file being written to your local directory :(
                     files_to_copy_orca = [f for f in files_to_copy if not f.endswith('.out') or f.endswith('.sh')]
                 
                     #copy all files w/ the same basename has the input
+                    sh_file.write(f'# Copying all files related to the file and all xyz files to the SLURM temp dir, then change to the temp dir\n')
+                    
                     for file in files_to_copy_orca:
                         sh_file.write(f'cp ${{SLURM_SUBMIT_DIR}}/{file} ${{SLURM_TMPDIR}}/\n')
-                
-                    #change to temp dir so that ORCA runs out of it
+                    sh_file.write(f'cp ${{SLURM_SUBMIT_DIR}}/*.xyz ${{SLURM_TMPDIR}}/\n')     #temporary addition for some ORCA solvator things
                     sh_file.write('cd ${SLURM_TMPDIR}\n\n') 
 
-                    sh_file.write(f'$EBROOTORCA/orca {file_name}\n\n')
-                    sh_file.write(f'cp ${{SLURM_TMPDIR}}/* ${{SLURM_SUBMIT_DIR}}/\n\n') #cp all files once calc finishes
-                
+                    #Run ORCA and get its PID
+                    sh_file.write('# Run ORCA and get its PID\n')
+                    sh_file.write(f'$EBROOTORCA/orca {file_name}\n')
+                    sh_file.write('MAIN_PID=$!\n\n')
+
+                    # Start a background process to copy files every 2 hours
+                    sh_file.writelines([
+                        '# Start a background process to copy files every 2 hours\n',
+                        '(\n',
+                        '    # Monitor the main job process and periodically copy files\n',
+                        '    while kill -0 $MAIN_PID 2> /dev/null; do\n',
+                        '        # Wait for 2 hours before attempting to copy files\n',
+                        '        sleep 2h\n',
+                        '        # Log the start of the rsync operation with a timestamp\n',
+                        f'        echo "$(date): Starting rsync operation" >> {directory}/copy_log.txt\n',
+                        '        # Use find to select files without "tmp" in their name and rsync to copy them\n',
+                        f'        find ${{SLURM_TMPDIR}} -type f ! -name \'*tmp*\' -exec rsync -av --no-links {{}} {directory}/ \\; >> {directory}/copy_log.txt 2>&1\n',
+                        '        # Check if rsync was successful and log the result\n',
+                        '        if [ $? -eq 0 ]; then\n',
+                        f'            echo "$(date): rsync operation completed successfully" >> {directory}/copy_log.txt\n',
+                        '        else\n',
+                        f'            echo "$(date): rsync operation failed" >> {directory}/copy_log.txt\n',
+                        '        fi\n',
+                        '    done\n',
+                        ')&\n\n'
+                    ])
+
+                    # Wait for the main job to complete
+                    sh_file.write('# When the main job completes, copy all output files back to the submit directory\n')
+                    sh_file.write('wait $MAIN_PID\n')
+                    sh_file.write(f'rsync -av ${{SLURM_TMPDIR}}/* "{directory}/"\n\n')
+                    
                 else:
                     #write the commend to run orca on the defined input file without temp dir    
                     sh_file.write(f'$EBROOTORCA/orca {file_name}\n')
