@@ -129,7 +129,7 @@ def submit_file(directory, file_name, sub_info):
 
                     # Set up a trap to copy files back if the job is interrupted - directories will not be copied
                     sh_file.write('# Set up a trap to copy files back if the job is interrupted - directories will not be copied\n')
-                    sh_file.write(f'trap "find ${{SLURM_TMPDIR}} -type f -exec cp {{}} {directory}/ \\;" EXIT\n\n')   
+                    sh_file.write(f'trap "find ${{SLURM_TMPDIR}} -type f -exec cp {{}} ${{SLURM_SUBMIT_DIR}}/ \\;" EXIT\n\n')   
 
                     # Update the copy file list to prevent copying any existing ORCA outputs to the SLURM tempdir. Otherwise, once the calc finishes, it will overwrite the .out file being written to your local directory :(
                     files_to_copy_orca = [f for f in files_to_copy if not f.endswith('.out') or f.endswith('.sh')]
@@ -156,14 +156,14 @@ def submit_file(directory, file_name, sub_info):
                         '        # Wait for 2 hours before attempting to copy files\n',
                         '        sleep 2h\n',
                         '        # Log the start of the rsync operation with a timestamp\n',
-                        f'        echo "$(date): Starting rsync operation" >> {directory}/copy_log.txt\n',
+                        f'        echo "$(date): Starting rsync operation" >> ${{SLURM_SUBMIT_DIR}}/copy_log.txt\n',
                         '        # Use find to select files without "tmp" in their name and rsync to copy them\n',
-                        f'        find ${{SLURM_TMPDIR}} -type f ! -name \'*tmp*\' -exec rsync -av --no-links {{}} {directory}/ \\; >> {directory}/copy_log.txt 2>&1\n',
+                        f'        find ${{SLURM_TMPDIR}} -type f ! -name \'*tmp*\' -exec rsync -av --no-links {{}} ${{SLURM_SUBMIT_DIR}}/ \\; >> ${{SLURM_SUBMIT_DIR}}/copy_log.txt 2>&1\n',
                         '        # Check if rsync was successful and log the result\n',
                         '        if [ $? -eq 0 ]; then\n',
-                        f'            echo "$(date): rsync operation completed successfully" >> {directory}/copy_log.txt\n',
+                        f'            echo "$(date): rsync operation completed successfully" >> ${{SLURM_SUBMIT_DIR}}/copy_log.txt\n',
                         '        else\n',
-                        f'            echo "$(date): rsync operation failed" >> {directory}/copy_log.txt\n',
+                        f'            echo "$(date): rsync operation failed" >> ${{SLURM_SUBMIT_DIR}}/copy_log.txt\n',
                         '        fi\n',
                         '    done\n',
                         ')&\n\n'
@@ -172,7 +172,7 @@ def submit_file(directory, file_name, sub_info):
                     # Wait for the main job to complete
                     sh_file.write('# When the main job completes, copy all output files back to the submit directory\n')
                     sh_file.write('wait $MAIN_PID\n')
-                    sh_file.write(f'rsync -av ${{SLURM_TMPDIR}}/* "{directory}/"\n\n')
+                    sh_file.write(f'rsync -av ${{SLURM_TMPDIR}}/* "${{SLURM_SUBMIT_DIR}}/"\n\n')
                     
                 else:
                     #write the commend to run orca on the defined input file without temp dir    
