@@ -175,7 +175,7 @@ def submit_file(directory, file_name, sub_info):
                     # Wait for the main job to complete
                     sh_file.write('# When the main job completes, copy all output files back to the submit directory\n')
                     sh_file.write('wait $MAIN_PID\n')
-                    sh_file.write(f'rsync -av ${{SLURM_TMPDIR}}/* "${{SLURM_SUBMIT_DIR}}/"\n\n')
+                    sh_file.write(f'rsync -axvH --no-g --no-p ${{SLURM_TMPDIR}}/* "${{SLURM_SUBMIT_DIR}}/"\n\n') #added options to ensure ownership doesn't change when copying files
                     
                 else:
                     #write the commend to run orca on the defined input file without temp dir    
