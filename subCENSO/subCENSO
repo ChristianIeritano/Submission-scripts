@@ -173,7 +173,7 @@ def submit_file(directory, file_name, sub_info):
             # Wait for the main job to complete
             sh_file.write('# When the main job completes, copy all output files back to the submit directory\n')
             sh_file.write('wait $MAIN_PID\n')
-            sh_file.write(f'rsync -av ${{SLURM_TMPDIR}}/* "{directory}/"\n\n')
+            sh_file.write(f'find ${{SLURM_TMPDIR}} -type f -exec rsync -av {{}} "{directory}/" \\;\n\n')
         
         #submission of CENSO files not on compute canada
         else:
