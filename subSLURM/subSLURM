@@ -106,6 +106,15 @@ def submit_file(directory, file_name, sub_info):
                 if 'orca5' in sub_info['program'].lower():
                     sh_file.write('module load StdEnv/2020 gcc/10.3.0 openmpi/4.1.1 orca/5.0.4\n\n')
 
+                    #Special call for NBO on Sharcwebz - i4 NBO executables for ORCA5
+                    if 'nbo' in sub_info['program'].lower():
+                        sh_file.writelines([
+                            'module load gaussian/g16.c01\n',
+                            r'export GENEXE=`which gennbo.i4.exe`',
+                            '\n',                    
+                            r'export NBOEXE=`which nbo7.i4.exe`',
+                            '\n\n',
+                        ])               
                 #ORCA 6.0.0 on Sharcwebz - need to do "in" searches because of the possibility that the user wants to do NBO jobs
                 elif 'orca6' in sub_info['program'].lower():
                     
@@ -115,14 +124,14 @@ def submit_file(directory, file_name, sub_info):
                     elif sub_info['program'] == 'orca601':
                         sh_file.write('module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.1\n\n')
 
-                    #Special call for NBO on Sharcwebz
+                    #Special call for NBO on Sharcwebz - i8 NBO executables for ORCA6
                     elif 'nbo' in sub_info['program'].lower():
                         sh_file.writelines([
                             'module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.1\n\n',
                             'module load gaussian/g16.c01\n',
-                            r'export GENEXE=`which gennbo.i4.exe`',
+                            r'export GENEXE=`which gennbo.i8.exe`',
                             '\n',                    
-                            r'export NBOEXE=`which nbo7.i4.exe`',
+                            r'export NBOEXE=`which nbo7.i8.exe`',
                             '\n\n',
                         ])               
 
