@@ -198,7 +198,22 @@ def submit_file(directory, file_name, sub_info):
             
             #if not ruunning on Sharcnet, then /tmp directories and ORCA versions might not matter. Just call ORCA :)
             else:
-                sh_file.write(f'/mnt/Scratch/programs/orca/orca {file_name}\n\n')
+                #photons1 ORCA
+                if os.path.isdir(r'/mnt/Scratch/programs/orca') and 'orca' in sub_info['program'].lower():
+                    sh_file.write(f'/mnt/Scratch/programs/orca/orca {file_name}\n\n')
+                
+                #photons2 ORCA
+                elif os.path.isdir(r'/programs/orca/orca') and 'orca' in sub_info['program'].lower():
+                    
+                    if sub_info['program'] == 'orca600':
+                        sh_file.write(f'$ORCA600/orca {file_name}\n\n')
+
+                    elif sub_info['program'] == 'orca601':
+                        sh_file.write(f'$ORCA601/orca {file_name}\n\n')
+
+                else: 
+                    print(f'Unrecognized ORCA program: {sub_info["program"]}. Note that NBO is not available on either Photons system.')
+                    return None               
 
         #######   MobCal-MPI  #######
         elif sub_info['program'] == 'mobcal':
