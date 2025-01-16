@@ -70,6 +70,7 @@ def submit_file(directory, file_name, sub_info):
             f'#SBATCH --time={sub_info["time"]}\n',
             '#SBATCH -N 1\n',
             f'#SBATCH --ntasks={sub_info["ncores"]}\n',
+            f'#SBATCH --cpus-per-task=1\n',
             f'#SBATCH --mem-per-cpu={sub_info["memory"]}\n',
             f'#SBATCH --error={base_name}.err\n',   
             ])    
@@ -194,6 +195,7 @@ def submit_file(directory, file_name, sub_info):
                     
                 else:
                     #write the commend to run orca on the defined input file without temp dir    
+                    sh_file.write('export OMP_NUM_THREADS=1\n')
                     sh_file.write(f'$EBROOTORCA/orca {file_name}\n')
             
             #if not ruunning on Sharcnet, then /tmp directories and ORCA versions might not matter. Just call ORCA :)
