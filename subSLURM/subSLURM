@@ -195,13 +195,13 @@ def submit_file(directory, file_name, sub_info):
                     
                 else:
                     #write the commend to run orca on the defined input file without temp dir    
-                    sh_file.write('export OMP_NUM_THREADS=1\n')
                     sh_file.write(f'$EBROOTORCA/orca {file_name}\n')
             
             #if not ruunning on Sharcnet, then /tmp directories and ORCA versions might not matter. Just call ORCA :)
             else:
                 #for running of photons with environment variables set for ORCA5, ORCA600, and ORCA601:
-                sh_file.write(f'${sub_info['program'].upper()}/orca {file_name}\n\n')           
+                sh_file.write('export OMP_NUM_THREADS=1\n')
+                sh_file.write(f'${sub_info["program"].upper()}/orca {file_name}\n\n')           
 
         #######   MobCal-MPI  #######
         elif sub_info['program'] == 'mobcal':
