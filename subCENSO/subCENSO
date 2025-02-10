@@ -129,8 +129,8 @@ def submit_file(directory, file_name, sub_info):
         
         if CC_cluster:
             sh_file.write('# Load modules needed to run CENSO')
-            sh_file.write('module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.0\n')
-            sh_file.write('module load python/3.11\n\n')
+            sh_file.write('module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.1\n')
+            #sh_file.write('module load python/3.11\n\n') #uncomment if you need a specifc python version, but this should suffice
             
             #copy all censo files needed for job
             sh_file.write('# Copy all job files to SLURM temp directory, then change direcotries to it\n')
@@ -173,7 +173,7 @@ def submit_file(directory, file_name, sub_info):
             # Wait for the main job to complete
             sh_file.write('# When the main job completes, copy all output files back to the submit directory\n')
             sh_file.write('wait $MAIN_PID\n')
-            sh_file.write(f'find ${{SLURM_TMPDIR}} -type f -exec rsync -av {{}} "{directory}/" \\;\n\n')
+            sh_file.write(f'find ${{SLURM_TMPDIR}} -type f -exec rsync -axvH --no-g --no-p {{}} "{directory}/" \\;\n\n')
         
         #submission of CENSO files not on compute canada
         else:
