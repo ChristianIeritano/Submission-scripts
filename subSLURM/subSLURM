@@ -205,6 +205,11 @@ def submit_file(directory, file_name, sub_info):
 
         #######   MobCal-MPI  #######
         elif sub_info['program'] == 'mobcal':
+            
+            #issue with intel fortran compilers w/ StdEnv/2023, so we revert to the working ones in StdEnv/2020
+            if CC_cluster:
+                sh_file.write('module load StdEnv/2020\n')
+            
             sh_file.write(f'\nsrun MobCal_MPI_203.exe {file_name} {file_name.rsplit(".", 1)[0]}.mout\n\n') #takes inputfile and outputfile names as command line arguements
 
         #######   CREST   #######
