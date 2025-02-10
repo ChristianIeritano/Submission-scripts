@@ -128,7 +128,7 @@ def submit_file(directory, file_name, sub_info):
         ])
         
         if CC_cluster:
-            sh_file.write('# Load modules needed to run CENSO')
+            sh_file.write('# Load modules needed to run CENSO\n')
             sh_file.write('module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.1\n')
             #sh_file.write('module load python/3.11\n\n') #uncomment if you need a specifc python version, but this should suffice
             
