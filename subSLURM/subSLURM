@@ -391,6 +391,7 @@ def main():
         'orca5nbo': '.inp', 
         'orca600': '.inp', 
         'orca601': '.inp',
+        'orca611': '.inp',
         'orca6nbo': '.inp', 
         'mobcal': '.mfj', 
         'crest': '.xyz',
