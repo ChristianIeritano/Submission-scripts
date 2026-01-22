@@ -34,7 +34,9 @@ def DRAC_cluster_check(cluster_name):
         'graham' : ['gra', 'login'], #Server Name: gra-login2
         'cedar' : ['computecanada', 'cedar'], #Server Name: cedar1.int.cedar.computecanada.ca
         'beluga' : ['beluga', 'calcul', 'quebec'], #Server name: beluga4.int.ets1.calculquebec.ca
-        'niagara' : ['compute', 'canada', 'niagara']
+        'niagara' : ['compute', 'canada', 'niagara'],
+        'nibi' : ['nibi', 'alliance', 'can'],
+        'rorqual' : ['rorqual', 'alliance', 'can']
     }
 
     for pseudonyms in cluster_names.values():
