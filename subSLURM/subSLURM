@@ -124,10 +124,13 @@ def submit_file(directory, file_name, sub_info):
                     elif sub_info['program'] == 'orca601':
                         sh_file.write('module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.1\n\n')
 
+                    elif sub_info['program'] == 'orca611':
+                        sh_file.write('module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.1.1\n\n')
+
                     #Special call for NBO on Sharcwebz - i8 NBO executables for ORCA6
                     elif 'nbo' in sub_info['program'].lower():
                         sh_file.writelines([
-                            'module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.0.1\n\n',
+                            'module load StdEnv/2023 gcc/12.3 openmpi/4.1.5 orca/6.1.1\n\n',
                             'module load gaussian/g16.c01\n',
                             r'export GENEXE=`which gennbo.i8.exe`',
                             '\n',                    
