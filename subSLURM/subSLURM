@@ -60,7 +60,7 @@ def submit_file(directory, file_name, sub_info):
     #define list of files with the same basename for copying to SLURM TMP_dir - avoiding substring matching because files can be File_1 and File_10, etc. 
     #info on SLURM tempdir can be found at https://docs.alliancecan.ca/wiki/Using_node-local_storage
     base_name = file_name.rsplit('.', 1)[0]
-    pattern = re.compile(f"^{re.escape(base_name)}(?:_|\..*)?$")
+    pattern = re.compile(rf"^{re.escape(base_name)}(?:_|\..*)?$")
     files_to_copy = [f for f in os.listdir(os.getcwd()) if pattern.match(f)]
     
     #write SLURM account info
