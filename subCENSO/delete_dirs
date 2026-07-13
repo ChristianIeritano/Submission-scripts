@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Find and delete directories named 0_PRESCREENING, 1_SCREENING, or 2_OPTIMIZATION
+find . -type d \( -name "0_PRESCREENING" -o -name "1_SCREENING" -o -name "2_OPTIMIZATION" \) -exec rm -rf {} +
+
+echo "Directories named 0_PRESCREENING, 1_SCREENING, or 2_OPTIMIZATION have been deleted."
