@@ -1,13 +1,12 @@
-# Submission scripts
  Useful scripts for submitting jobs to HPC resources like Compute Canada. All scripts provided are free use; feel free to use and modify and use them in your workflows as you see fit. 
 
-## subSLURM and subSLURM_node
+# subSLURM
 These Python scripts automates the job submission process on Compute Canada systems for Gaussian (g16), Python (.py), ORCA (.inp), and MobCal-MPI (.mfj) files. There is one minor difference between them, namely:
 
 - subSLURM: The user-specified memory allocates memory per CPU. 
 - update_subSLURM: A handy function for updating subSLURM on your local environment without downloading from Github.
 
-### Prerequisites 
+## Prerequisites 
 - Python 3.10 or higher
     - Add the following line to the bottom of your bash profile to ensure python is globally available. Note that your version of python is specific to your systems configuration. Syntax for loading a specific python version may vary *or* python may be be enabled by default:
     ```bash
@@ -21,7 +20,7 @@ These Python scripts automates the job submission process on Compute Canada syst
     module spider orca
     ```
 
-### Installation
+## Installation
 - Add `subSLURM` to a directory available in your systems PATH. I reccomend a folder called `/bin` located in `/home/{your_username}`. To add this location to your PATH, add the following line to `.bash_profile`:
     ```bash
     PATH=$PATH:$HOME/.local/bin:$HOME/bin
@@ -35,7 +34,7 @@ These Python scripts automates the job submission process on Compute Canada syst
     chmod a+x subSLURM update_subSLURM
     ```
 
-### Usage
+## Usage
 Since subSLURM and update_subSLURM is in systems PATH, it can be called from any directory. Usage is as follows: 
 
 ```console
@@ -73,7 +72,7 @@ elif sub_info['program'] == 'crest':
     sh_file.write(f'\nsrun crest {file_name} --gfn2 -T {sub_info["ncores"]} --chrg 1\n\n')
 ```
 
-### Updating subSLURM
+## Updating subSLURM
 If updates are pushed to GitHub, users can update their local copy of subSLURM via `update_subSLURM`. If `update_subSLURM` is in your system's PATH:
 
 ```bash
@@ -91,8 +90,8 @@ Starting update process...
 Update process completed.
 ```
 
-### Customization
-#### Changing Account Credentials
+## Customization
+### Changing Account Credentials
 If you belong to a different group or have different account credentials, you will need to modify the script to reflect your account details. Look for the following section in the subSLURM code, and update it with your group's credentials:
 
 ```python
@@ -107,10 +106,10 @@ If you belong to a different group or have different account credentials, you wi
             sh_file.write(f'#SBATCH --account=def-shopkins\n')
         #!!!!!!!!!!!!!!!!!!!!!!!!!
 ```
-#### Adding support for other file types
+### Adding support for other file types
 To add support for other programs, extend the `extension_map` dictionary,  add the necessary conditional blocks in the submit_file function, and populate that block with the information necessary to make the SLURM .sh file.
 
-### Examples
+## Examples
 For submitting one file using 4 cores, 4096mb (4GB) per core, 2h walltime, calling g16 on the default account:
 ```bash
 subSLURM my_calculation.gjf -n 4 -m 4096mb -t 2h -p g16 -a def
@@ -121,4 +120,91 @@ For submitting all files with a .inp extension (calling ORCA) using 8 cores, 409
 subSLURM all -n 8 -m 4096mb -t 1d12h -p orca -a rrg -temp false
 ```
 
+# subCENSO
 
+## Workflow
+
+`subCENSO` automates the preparation and submission of CENSO calculations to a SLURM cluster.
+
+The working directory should contain:
+
+- A **CENSO Python workflow** (e.g., `censo_config.py`)
+- A **`.censo2rc`** configuration file
+- One or more **`.xyz` ensemble files**
+
+For each `.xyz` file, `subCENSO` will:
+
+1. Create a subdirectory named after the input file.
+2. Copy the Python workflow, `.censo2rc`, and `.xyz` file into the subdirectory.
+3. Update the copied Python workflow with the requested:
+   - Molecular charge
+   - Number of unpaired electrons
+   - Number of CPU cores
+4. Generate a SLURM submission script.
+5. Submit the calculation to the scheduler.
+
+The original template files are never modified.
+
+---
+
+## Example
+
+```bash
+subCENSO -n 64 -m 3250mb -t 3d -c 1 -u 0 -solv gas -a rrg
+```
+
+---
+
+## Command-Line Options
+
+| Flag | Description |
+|------|-------------|
+| `-n <cores>` | Number of CPU cores allocated to the CENSO calculation. |
+| `-m <memory>` | Memory allocated **per CPU core** (e.g., `3250mb`). |
+| `-t <time>` | Maximum wall time (e.g., `3d`, `24h`, `12:00:00`). |
+| `-c <charge>` | Molecular charge supplied to `ensemble.read_input()`. |
+| `-u <unpaired>` | Number of unpaired electrons (`0` = closed-shell, `1` = doublet, etc.). |
+| `-solv <solvent>` | Solvent to use (e.g., `gas`, `water`, `methanol`). `gas` performs a gas-phase calculation. |
+| `-a <account>` | Alliance/SLURM account to charge (e.g., `rrg-username`). |
+
+---
+
+## Example Directory Structure
+
+Initial directory:
+
+```text
+project/
+├── censo_config.py
+├── settings.censo2rc
+├── Gly4-H_cis.xyz
+├── Gly4-H_trans.xyz
+└── ...
+```
+
+Running
+
+```bash
+subCENSO -n 64 -c 1 -u 0
+```
+
+produces
+
+```text
+project/
+├── Gly4-H_cis/
+│   ├── Gly4-H_cis.xyz
+│   ├── settings.censo2rc
+│   ├── censo_config.py
+│   └── submit.sh
+│
+├── Gly4-H_trans/
+│   ├── Gly4-H_trans.xyz
+│   ├── settings.censo2rc
+│   ├── censo_config.py
+│   └── submit.sh
+│
+└── ...
+```
+
+Each subdirectory is submitted as an independent SLURM job.
