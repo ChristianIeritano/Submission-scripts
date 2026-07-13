@@ -185,7 +185,7 @@ project/
 Running
 
 ```bash
-subCENSO -n 64 -c 1 -u 0
+subCENSO -n 64 -m 3250mb -t 2d -c 1 -u 0 -solv gas -a def
 ```
 
 produces
