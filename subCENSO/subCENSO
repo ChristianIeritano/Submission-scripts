@@ -35,7 +35,8 @@ def DRAC_cluster_check(cluster_name):
         'graham' : ['gra', 'login'], #Server Name: gra-login2
         'cedar' : ['computecanada', 'cedar'], #Server Name: cedar1.int.cedar.computecanada.ca
         'beluga' : ['beluga', 'calcul', 'quebec'], #Server name: beluga4.int.ets1.calculquebec.ca
-        'niagara' : ['compute', 'canada', 'niagara']
+        'niagara' : ['compute', 'canada', 'niagara'],
+        'nibi' : ['nibi', 'alliance', 'can'],
     }
 
     for pseudonyms in cluster_names.values():
@@ -120,10 +121,10 @@ def prepare_job_files(sub_info):
                 file.write(line)
 
         # Create and submit the SLURM job file
-        submit_file(job_dir, base_name, sub_info)
+        submit_file(job_dir, base_name, sub_info, target_py_file)
 
 # Function to submit a job file
-def submit_file(directory, file_name, sub_info):
+def submit_file(directory, file_name, sub_info, target_py_file):
     cluster_name = str(socket.gethostname()).lower()
     CC_cluster = DRAC_cluster_check(cluster_name)
 
@@ -161,7 +162,7 @@ def submit_file(directory, file_name, sub_info):
 
             # Run the Python script and get its PID
             sh_file.write('# Run the Python script and get its PID\n')
-            sh_file.write(f'python {file_name}.py &\n')
+            sh_file.write(f'python {target_py_file} &\n')
             sh_file.write('MAIN_PID=$!\n\n')
 
             # Start a background process to copy files every 2 hours
